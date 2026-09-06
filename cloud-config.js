@@ -9,6 +9,6 @@
    提示：不配置（保持原样）= 不启用云同步，单机照常使用
    ============================================================ */
 window.CLOUD_SYNC = {
-  binUrl: 'https://api.jsonbin.io/v3/b/替换我',
-  masterKey: '替换我'
+  binUrl: 'https://api.jsonbin.io/v3/b/6a9cda8cf5f4af5e297006b2',
+  masterKey: $2a$10$9SeOXZ1V3bCxUYNOR2gCpu3ADDY.BJqA0VdSU7EnbZ0cPbOFSZtjq
 };
