@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="0BVd1ExfXDqzmB13NMZHmG">
+<head data-page-node-id="hhfpbzlohJE8eUX3e2zSF8">
+  <meta charset="UTF-8" data-page-node-id="ZLek73gb5FEABy4BgEi1yl">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" data-page-node-id="dE6dXLMeP07vDXCzstAFdd">
+  <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="UgalFQaCRqmq66MGHhvFCT">
+  <meta name="mobile-web-app-capable" content="yes" data-page-node-id="5dq4PNXLP7uKeb1icEqNn1">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="dw2pIVprfwgPHycDhkVlqk">
+  <meta name="apple-mobile-web-app-title" content="学习小天地" data-page-node-id="XqTlDDg8VlMQ7HHh260J2D">
+  <meta name="application-name" content="学习小天地" data-page-node-id="ncBv0ieyAkWvOw6HEqWeHh">
+  <meta name="theme-color" content="#FF4F8B" data-page-node-id="tcZ4jwlBXb70ZAXeBasKOB">
+  <meta name="description" content="为Janny和Jackie定制的学习系统：作业、错题、学习计划、积分宠物养成" data-page-node-id="GEKhIOMwalZKOeEYGEEtLL">
+  <link rel="manifest" href="manifest.json" data-page-node-id="RyH0K52NZEOTbR00pHoHiN">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" data-page-node-id="dC8TCX8kdXeHfR3H9kZuAp">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" data-page-node-id="oD3Nc1GiCyCzlaYmTjMWkw">
+  <link rel="apple-touch-icon" href="icon-192.png" data-page-node-id="PVuEJBlKsHwj42prjeJr6l">
+  <title>学习小天地 🌈</title>
+  <link rel="stylesheet" href="style.css" data-page-node-id="FgnIdK55UnhE7PWpHXBpML">
+</head>
+<body data-page-node-id="EkhajGRqf1kvP2UCLbC36G">
+
+  <!-- ============ 顶部加载条 ============ -->
+  <div id="loading-bar" class="loading-bar" data-page-node-id="Bo2Aii0XHnkWqmchAMaP4b"><div class="loading-bar-inner" data-page-node-id="wjHIS73h0qiwy7TxyAnszs"></div></div>
+
+  <!-- ============ 提示弹窗 ============ -->
+  <div id="toast" class="toast" data-page-node-id="vsHe9ZxvaaduNEaExJ3pVa"></div>
+
+  <!-- ============ 角色选择入口 ============ -->
+  <section class="page page-home" data-page="home" data-page-node-id="1cJBpncDsjIPnNvWbF0x9R">
+    <div class="home-deco deco-1" data-page-node-id="1MG0PlF03AC5oGTp2edFra">☁️</div>
+    <div class="home-deco deco-2" data-page-node-id="ho1eUyPG4lKjGTiJaTvB6N">⭐</div>
+    <div class="home-deco deco-3" data-page-node-id="nWuyI8ka1s26uElmbjfHfg">🌈</div>
+    <div class="home-deco deco-4" data-page-node-id="GTCBiWCSl0Dh73raHKnnd4">🎈</div>
+    <div class="home-title" data-page-node-id="sEUdE2wc3j0NPxfaeGQq6k">
+      <div class="home-logo" data-page-node-id="F084iSI9bqHnNsgIWWlh6E">🌟</div>
+      <h1 data-page-node-id="uJwmP3jAAgsYO4EVqHm3GO">学习小天地</h1>
+      <p class="home-subtitle" data-page-node-id="gQL1Io7majPEdLnUhDvgTw">每天进步一点点 ✨</p>
+    </div>
+    <div class="role-grid" data-page-node-id="mlxFkY1zsB3VjIxborj3Z9">
+      <div class="role-card role-janny" data-go="child/janny" data-page-node-id="KCLVjo3nvFgBM8Uat9UWBg">
+        <div class="role-avatar" data-page-node-id="RfnpsFloilyQdjTN16iEyi">👧🏻</div>
+        <div class="role-name" data-page-node-id="CZObMeu2KnusFNpwHeR7vH">Janny</div>
+        <div class="role-grade" data-page-node-id="VcjJpMfxg2SBfepsrCRtD0">六年级</div>
+        <div class="role-tap" data-page-node-id="rt6tFnqCgUePVMLafAuuuC">点我进入 →</div>
+      </div>
+      <div class="role-card role-jackie" data-go="child/jackie" data-page-node-id="RKnLXvcpfAReQxgIgV3DIC">
+        <div class="role-avatar" data-page-node-id="KiCVHgDBFinF5cqfk7kwrd">👦🏻</div>
+        <div class="role-name" data-page-node-id="rAJGW50RXZxUfM5tA3eHKY">Jackie</div>
+        <div class="role-grade" data-page-node-id="xv0CKSnd9BLRROWdwLsQHJ">三年级</div>
+        <div class="role-tap" data-page-node-id="fw8rdLO6GHpc3sQsaANO1K">点我进入 →</div>
+      </div>
+      <div class="role-card role-mother" data-go="mother" data-page-node-id="lsvhS85kF7ZTyHms1Bur7z">
+        <div class="role-avatar" data-page-node-id="pjv0hWqUR9Mk2SnUdxXQ0m">👩‍🦰</div>
+        <div class="role-name" data-page-node-id="tR5ocwJyRYjHO7mEN6vgde">妈妈后台</div>
+        <div class="role-grade" data-page-node-id="eILdmtqgNZJROofzTmMoTx">检查与配置</div>
+        <div class="role-tap" data-page-node-id="TJQjgPmZNGXX8D7pffNVME">管理学习 →</div>
+      </div>
+    </div>
+    <div class="home-footer" data-page-node-id="tMEZgNRFSeH4gaIcDZyU5e">v1.0 · 数据保存在本机</div>
+  </section>
+
+  <!-- ============ 孩子主页 ============ -->
+  <section class="page page-child" data-page="child" data-page-node-id="EvdPWDwZNuReogmRRpRUgT">
+    <header class="child-header" id="childHeader" data-page-node-id="tbk009jN3cDYEOwFrsNFIB">
+      <div class="child-avatar-big" id="childAvatar" data-page-node-id="YgmsY5eiSmFf46kguj86CJ">👧🏻</div>
+      <div class="child-greet" data-page-node-id="EHzkZ2ny7oyzS2yPYOKGqJ">
+        <h2 id="childGreet" data-page-node-id="2kADbzIGHup60dircZ5g6y">你好，小朋友</h2>
+        <div class="child-date" id="childDate" data-page-node-id="JgwKTFXPTHHHhf6KvwpPU2"></div>
+        <div class="child-streak" data-page-node-id="I3kOOgcpFUalpYBj8y9DzS">🔥 已坚持 <span id="childStreak" data-page-node-id="wg2Fwn5bYEjcvMTJTTtZ8a">0</span> 天</div>
+        <div class="pet-mini" id="petMini" title="点击查看宠物" data-page-node-id="LuC55IlabQ5txhA4POGDax">
+          <span class="pet-emoji" data-page-node-id="nXcAoxqQL2Y8lqHd6GRqZk">🐣</span>
+          <span class="pet-name-mini" data-page-node-id="VomrjNvKOoGkZrKlEQYThx">小宠物</span>
+        </div>
+      </div>
+      <button class="btn-icon btn-logout" data-go="home" title="退出" data-page-node-id="GvrHHpu7IFrLi9XFXxLHVj">🚪</button>
+    </header>
+
+    <div class="child-modules" data-page-node-id="NBi1LyJiu9yS9ghHQFX0Eh">
+      <!-- 今日老师作业 -->
+      <div class="module-card module-homework" data-go="child/homework" data-page-node-id="kGfKoaprWQ1QPiRPOBfRnd">
+        <div class="module-head" data-page-node-id="dHudGhQ634HSDwmFuB5lPG">
+          <span class="module-icon" data-page-node-id="2FuL2hBpdWeK93oEHsqkRN">📚</span>
+          <span class="module-title" data-page-node-id="DNBfS8Aewz84hJWTFrErjs">今日老师作业</span>
+          <span class="module-status" id="homeworkStatus" data-page-node-id="6OWFalcpCy2iSUx31DbYo3">未完成</span>
+        </div>
+        <div class="module-encourage" id="homeworkEncourage" data-page-node-id="WEL8BB7i2evcE5JY9m5bHY">一起加油哦～</div>
+        <div class="module-action" data-page-node-id="vLdUBPgntXtWAcuIKsCpdA">点击进入 →</div>
+      </div>
+
+      <!-- 今日错题 -->
+      <div class="module-card module-mistakes" data-go="child/mistakes" data-page-node-id="wvcQwokuIJtHmv2zi9sAyb">
+        <div class="module-head" data-page-node-id="FGOvOaQupXYV8c7l5IhPOL">
+          <span class="module-icon" data-page-node-id="r7dNXLmocK0YEMnjYgKXXs">🔍</span>
+          <span class="module-title" data-page-node-id="RkfTceiVfzV5TUjc0IGsEp">今日错题</span>
+          <span class="module-status" id="mistakesStatus" data-page-node-id="zVXyBMHeOusfzseqUfwf3v">0 道待复习</span>
+        </div>
+        <div class="module-encourage" id="mistakesEncourage" data-page-node-id="jM0DbfUalF4cUFCincdFOU">做对的题，都是勋章！</div>
+        <div class="module-action" data-page-node-id="ww6XFrpfpOQ5uYpLV1UOER">点击进入 →</div>
+      </div>
+
+      <!-- 学习计划 -->
+      <div class="module-card module-plan" data-go="child/plans" data-page-node-id="dCaEAJd4MCcCMJ35w5w0wS">
+        <div class="module-head" data-page-node-id="CCxXcKRydDwygy2fShGIqu">
+          <span class="module-icon" data-page-node-id="Rc9YXB9yNrCP9CqgBk7nxw">📝</span>
+          <span class="module-title" data-page-node-id="KNood0EQxHQ1Jxb671BGmA">今日学习计划</span>
+          <span class="module-status" id="planStatus" data-page-node-id="mgcoZigAy7S8dUz9FAqiSk">0 项</span>
+        </div>
+        <div class="module-progress" id="planProgress" data-page-node-id="qeJfr6ARMh10irO3ynmUuA">
+          <div class="module-progress-fill" style="width:0%" data-page-node-id="3exRkyWuNmNkJNI3FN4gMc"></div>
+        </div>
+        <div class="module-encourage" id="planEncourage" data-page-node-id="jiYztq610RoM5LPtTfksIu">今日预计学习 <b id="planDuration" data-page-node-id="HSxGi8yitpZgDsdSG07lPz">0</b> 分钟</div>
+        <div class="module-action" data-page-node-id="3ixhWD7qkiUyZ5ACxo5jr5">点击进入 →</div>
+      </div>
+    </div>
+
+    <!-- 底部Tally积分和快捷区 -->
+    <div class="child-bottom" data-page-node-id="JBWSevuu8r0ALVFDQdckIJ">
+      <button class="bb-btn" id="openReward" data-page-node-id="0rucxDq9ESJpVRG1iBUf1B">🎁 积分商城</button>
+      <button class="bb-btn" id="openPet" data-page-node-id="B6cHpkwFPaaccImb7MhPgl">🐣 我的宠物</button>
+    </div>
+  </section>
+
+  <!-- ============ 各功能页面通用容器 ============ -->
+  <main id="appMain" class="app-main" data-page-node-id="gcHXVGWlfGSCOhpWonIXEa"></main>
+
+  <!-- ============ 通用底部弹窗层 ============ -->
+  <div id="modal" class="modal hidden" data-page-node-id="aHHq62OZOLvFZBkthPTA6k">
+    <div class="modal-mask" data-page-node-id="wvaCPB43wAKsJUNAfaA1Ap"></div>
+    <div class="modal-body" id="modalBody" data-page-node-id="nPKt6qHiLYzt5HCGxaUjLw"></div>
+  </div>
+
+  <!-- ============ 拍照查重提示层 ============ -->
+  <div id="cameraGuard" class="modal hidden" data-page-node-id="OonNvG12V35sGnLUnEEYFA">
+    <div class="modal-mask" data-page-node-id="9bs0h5M9xyx68nrBLg5gBC"></div>
+    <div class="modal-body" data-page-node-id="qw4Zonv9oq6DJzzSkgGwxc">
+      <h3 data-page-node-id="fmqX16dsO7AhdePQenLBKn">🚫 不允许使用旧照片</h3>
+      <p id="cameraGuardText" data-page-node-id="MsHNDJkkN9NvKCmXEeQpyk">为了保证学习真实，必须用摄像头现场拍摄！</p>
+      <div class="modal-actions" data-page-node-id="NW46gVNiLWeWDQncWTlZdl">
+        <button class="btn-primary" id="cameraGuardRe" data-page-node-id="v0I2yZbJwEG4w1jDqrejqI">📷 重新拍摄</button>
+        <button class="btn-secondary" id="cameraGuardCancel" data-page-node-id="mBMDrA7R8j3ZAsjZfXcfSF">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 相机预览层 ============ -->
+  <div id="cameraLayer" class="camera-layer hidden" data-page-node-id="vJBm2nshw7Bc2lcbSE9FMp">
+    <video id="cameraVideo" autoplay playsinline muted data-page-node-id="uuaBKCqXBHCds3bMChgPHH"></video>
+    <canvas id="cameraCanvas" hidden data-page-node-id="8o6ghNjdHiOxYYvGRF1IUK"></canvas>
+    <div class="camera-overlay" data-page-node-id="PCmeJvaQ3GEPb7TNrmF1pf">
+      <div class="camera-frame" data-page-node-id="kchwbJjmJQ5YcGvDIurZNB"></div>
+      <div class="camera-tip" id="cameraTip" data-page-node-id="SIGjcdNNFOutV3jOP4YanT">把题目拍清楚 ✏️</div>
+    </div>
+    <div class="camera-actions" data-page-node-id="Tg7GH8TV52tKgKKTHitBck">
+      <button class="cam-btn cam-close" id="camClose" data-page-node-id="vAkcpJ3sgdEAIxaxK2vegt">✕</button>
+      <button class="cam-btn cam-shoot" id="camShoot" data-page-node-id="aigZ8mNNDAIKFcA6kssjhi">📸</button>
+      <button class="cam-btn cam-flip" id="camFlip" data-page-node-id="Ck6XNnzaTmDLgxDrW7Eg1B">🔄</button>
+    </div>
+  </div>
+
+  <!-- ============ 录音层 ============ -->
+  <div id="recLayer" class="modal hidden" data-page-node-id="BUBlXa9k1ueXIqvvoG3x0e">
+    <div class="modal-mask" data-page-node-id="5FXYwDvFkwNElVIOGSwxMs"></div>
+    <div class="modal-body rec-body" data-page-node-id="DpTusW2jRmhPLQVafE8wTA">
+      <div class="rec-icon" data-page-node-id="yiTTCUG1Xv9nsygJoVfjCX">🎙️</div>
+      <div class="rec-title" id="recTitle" data-page-node-id="zP4Q5rsNRnF8cwEJsnsg2N">录音中…</div>
+      <div class="rec-wave" id="recWave" data-page-node-id="EjPTpHVUwhkDpjYjMKQnhU">
+        <span data-page-node-id="Xz70uozquDjwf4lNtnyx7p"></span><span data-page-node-id="dYcmPFdo319zv4LFZpIfOe"></span><span data-page-node-id="2HFXqpZjZDuj1DrLYtOdDB"></span><span data-page-node-id="IDI1KgOYP3oVBL6sT9NNVz"></span><span data-page-node-id="zksBHes5SjJKPNE9treHDQ"></span>
+      </div>
+      <div class="rec-time" id="recTime" data-page-node-id="56nedDMcQ5nmU5iPJxwGQn">00:00</div>
+      <div class="modal-actions" data-page-node-id="jhWw98NJ2wWfOUXG3lg2i7">
+        <button class="btn-primary" id="recToggle" data-page-node-id="Eo9l4xwkzVTd7mHjz4NGBM">⏺ 开始录音</button>
+        <button class="btn-secondary" id="recPlay" data-page-node-id="IAdFnjnCycf22Zv6KwA5DK">▶ 回放</button>
+        <button class="btn-secondary" id="recSubmit" data-page-node-id="1CBYX8GdUCL1mDNJFDAeyR">✓ 提交</button>
+        <button class="btn-secondary" id="recCancel" data-page-node-id="x0UzBloJtYJ1JDUWm3iX7R">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ OCR中转 ============ -->
+  <div id="ocrLayer" class="modal hidden" data-page-node-id="ALSgcsMFt8UgkSQf1KPQfs">
+    <div class="modal-mask" data-page-node-id="0W9czJ0yt2hBbnOXW07wp7"></div>
+    <div class="modal-body" data-page-node-id="X9G1egt9sh3Yy9QAyaqZVT">
+      <div class="ocr-spinner" data-page-node-id="5HtRyijsp7mN2rmHHJNtiC">🔍</div>
+      <div id="ocrText" data-page-node-id="Lbb0FOVEpluNC5DFYwm91D">正在识别题目内容…</div>
+    </div>
+  </div>
+
+  <!-- ============ 通用弹窗模板 ============ -->
+  <template id="tpl-confirm" data-page-node-id="C4SwIAzZ4niJ11g21TRnK4">
+    <div class="confirm" data-page-node-id="yE9AAFxrTAsowF4RML1ICD">
+      <h3 id="confirmTitle" data-page-node-id="sx3XWnWZIwbSiWlt77ebY6">提示</h3>
+      <p id="confirmText" data-page-node-id="teW85hXG3QlsgEJXzD3mHh">确定吗？</p>
+      <div class="modal-actions" data-page-node-id="W3DEUf6RskyMnNMl42RVzB">
+        <button class="btn-primary" data-result="true" data-page-node-id="4hdOQCpQLfFePNirMaweK0">确定</button>
+        <button class="btn-secondary" data-result="false" data-page-node-id="pnT8Sr4CiJCB7RW2538Y1w">取消</button>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ 脚本 ============ -->
+  <script>
+    // 注册 Service Worker（PWA 离线）
+    // v1.1.1：升级检测——发现新版本 SW 时自动激活并刷新，避免旧缓存 JS 残留
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => {
+            console.log('[PWA] SW registered:', reg.scope);
+            // 每60分钟检查一次更新
+            setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
+            // 有新版本等待时，自动激活并刷新页面
+            if (reg.waiting) {
+              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
+            reg.addEventListener('updatefound', () => {
+              const newSW = reg.installing;
+              newSW && newSW.addEventListener('statechange', () => {
+                if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                  newSW.postMessage({ type: 'SKIP_WAITING' });
+                }
+              });
+            });
+          })
+          .catch(err => console.warn('[PWA] SW registration failed:', err));
+        // 当 SW 接管控制权（新旧切换）时，强制刷新一次，确保加载最新 JS
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (refreshing) return;
+          refreshing = true;
+          console.log('[PWA] 新版本已激活，自动刷新');
+          setTimeout(() => location.reload(), 200);
+        });
+      });
+    }
+  </script>
+  <script src="app.js"></script>
+  <script src="app-ext.js"></script>
+  <script src="cloud-config.js"></script>
+  <script src="app-sync.js"></script>
+</body>
+</html>
