@@ -56,7 +56,7 @@
         <div class="role-tap" data-page-node-id="TJQjgPmZNGXX8D7pffNVME">管理学习 →</div>
       </div>
     </div>
-    <div class="home-footer" data-page-node-id="tMEZgNRFSeH4gaIcDZyU5e">v1.0 · 数据保存在本机</div>
+    <div class="home-footer" id="homeFooterNote" data-page-node-id="tMEZgNRFSeH4gaIcDZyU5e">v1.6 · 数据自动同步中…</div>
   </section>
 
   <!-- ============ 孩子主页 ============ -->
@@ -233,10 +233,11 @@
       });
     }
   </script>
-  <script src="app.js"></script>
-  <script src="app-ext.js"></script>
-  <script src="app-auth.js"></script>
-  <script src="cloud-config.js"></script>
-  <script src="app-sync.js"></script>
+  <!-- defer：先渲染页面内容，脚本并行下载后按顺序执行 → 首屏更快 -->
+  <script defer src="app.js"></script>
+  <script defer src="app-ext.js"></script>
+  <script defer src="app-auth.js"></script>
+  <script defer src="cloud-config.js"></script>
+  <script defer src="app-sync.js"></script>
 </body>
 </html>

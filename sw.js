@@ -1,9 +1,10 @@
 /* ============================================
    学习小天地 - Service Worker
    实现离线缓存 + 后台同步 + 推送接收
+   v1.6.0：① 预缓存加入同步层脚本 ② 后台校验节流（弱网不拥堵）
    ============================================ */
 
-const CACHE_VERSION = 'study-app-v1.5.0';
+const CACHE_VERSION = 'study-app-v1.6.0';
 const STATIC_CACHE = CACHE_VERSION + '-static';
 const DYNAMIC_CACHE = CACHE_VERSION + '-dynamic';
 
@@ -15,6 +16,8 @@ const CORE_ASSETS = [
   './app.js',
   './app-ext.js',
   './app-auth.js',
+  './cloud-config.js',
+  './app-sync.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
@@ -66,6 +69,21 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+/* ============ 后台校验节流 ============
+   命中缓存时通常会在后台重新拉一次资源（新版本发布后自动更新缓存）。
+   在网速慢/不稳定的场景下，每次打开页面都会触发一批这样的请求，反而拖慢整体。
+   这里对同一资源限制：60 秒内最多后台校验 1 次。 */
+const revalRecent = new Map();
+const REVAL_MIN_MS = 60 * 1000;
+
+function shouldRevalidate(urlStr) {
+  const now = Date.now();
+  const last = revalRecent.get(urlStr);
+  if (last && now - last < REVAL_MIN_MS) return false;
+  revalRecent.set(urlStr, now);
+  return true;
+}
+
 // ============ fetch 拦截：缓存优先 / 网络回退 ============
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -87,17 +105,17 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) {
-        // 命中缓存，后台异步更新
-        const fetchPromise = fetch(req).then((networkRes) => {
-          // 只缓存成功的响应
-          if (networkRes && networkRes.status === 200) {
-            const clone = networkRes.clone();
-            caches.open(DYNAMIC_CACHE).then(cache => {
-              cache.put(req, clone);
-            });
-          }
-          return networkRes;
-        }).catch(() => cached);
+        // 命中缓存：低频后台更新（节流），网络失败不影响使用
+        if (shouldRevalidate(url.href)) {
+          fetch(req).then((networkRes) => {
+            if (networkRes && networkRes.status === 200) {
+              const clone = networkRes.clone();
+              caches.open(DYNAMIC_CACHE).then(cache => {
+                cache.put(req, clone);
+              });
+            }
+          }).catch(() => {});
+        }
         return cached;
       }
 

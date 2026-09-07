@@ -1102,3 +1102,36 @@ details[open] summary { color: #C9184A; }
 
 /* ---- 小按钮（账户管理） ---- */
 .btn-mini { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
+
+/* ================= v1.6 多设备同步 / 计划保存 ================= */
+.sync-box {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 10px 12px; border-radius: 12px; margin-bottom: 12px;
+  font-size: 13px; line-height: 1.5;
+}
+.sync-box .sync-ic { font-size: 16px; }
+.sync-box .sync-txt { flex: 1 1 auto; min-width: 160px; }
+.sync-warn { background: #FFF8E1; border: 1px solid #F5D76E; color: #856404; }
+.sync-ok   { background: #EAF7EE; border: 1px solid #A9DFBF; color: #1E8449; }
+.sync-err  { background: #FDEDEC; border: 1px solid #F1948A; color: #C0392B; }
+.sync-btn { padding: 4px 10px; font-size: 12px; border: none; border-radius: 8px; cursor: pointer;
+            background: #FFF; box-shadow: 0 2px 0 #CCC; }
+.sync-ok .sync-btn { background: #1E8449; color: #FFF; box-shadow: 0 2px 0 #145A32; }
+.sync-err .sync-btn { background: #C0392B; color: #FFF; box-shadow: 0 2px 0 #922B21; }
+
+.plan-save-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 14px; margin: 4px 0 14px;
+  background: #f0f3f5; border: 1px dashed #BDC3C7; border-radius: 12px;
+  font-size: 13px; color: #7F8C8D;
+  transition: all .25s;
+}
+.plan-save-bar.active { background: #FFF3CD; border: 1px solid #F5B041; color: #7D6608; }
+.plan-save-actions { display: flex; gap: 8px; align-items: center; }
+.plan-save-bar .btn-finish { margin: 0; }
+.dirty-dot { color: #E67E22; animation: dirtyPulse 1.2s infinite; display: inline-block; margin-right: 2px; }
+@keyframes dirtyPulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* 同步设置弹窗输入框 */
+#sbBinId, #sbKey, #sbAccess { width: 100%; box-sizing: border-box; }
+details summary { outline: none; }

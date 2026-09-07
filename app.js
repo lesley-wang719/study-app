@@ -2599,11 +2599,25 @@ function motherTabs(tab, child) {
 }
 
 function motherBody(scope, tab, child) {
+  /* 计划分配页有未保存草稿时，先询问再离开（避免妈妈误丢改动） */
+  const leavePlanGuard = (toTab) => {
+    if (_planDirty(child) && toTab !== 'plans') {
+      if (!confirm('计划分配还有未保存的修改，离开将丢失。确定要离开吗？')) return false;
+      _dropPlanDraft();
+    }
+    return true;
+  };
   scope.querySelectorAll('[data-tab]').forEach(b => {
-    b.onclick = () => go(`mother/${b.dataset.tab}/${child}`);
+    b.onclick = () => {
+      if (!leavePlanGuard(b.dataset.tab)) return;
+      go(`mother/${b.dataset.tab}/${child}`);
+    };
   });
   scope.querySelectorAll('[data-child]').forEach(b => {
-    b.onclick = () => go(`mother/${tab}/${b.dataset.child}`);
+    b.onclick = () => {
+      if (!leavePlanGuard(tab)) return;
+      go(`mother/${tab}/${b.dataset.child}`);
+    };
   });
   const body = scope.querySelector('#motherBody');
   if (tab === 'home') renderMomHome(body, child);
@@ -2718,29 +2732,92 @@ function normalizeFixed(v) {
   return [];
 }
 
+/* ===================== 妈妈后台 - 计划分配（草稿 + 保存并同步） ===================== */
+/* 草稿：妈妈修改先写入本地草稿，点「保存并同步」才写库并推到云端全家可见 */
+let _planDraft = null;
+let _planDraftChild = '';
+
+function fmtTs(ts) {
+  try { return new Date(ts).toLocaleString('zh-CN', { hour12:false }); } catch(e) { return ''; }
+}
+
+function _draftOf(child) {
+  if (_planDraftChild !== child || !_planDraft) {
+    const conf = DB.data.weeklyConfig[child] || { enabled:{}, fixedDay:{}, allowSelfAssign:false };
+    _planDraft = {
+      enabled: Object.assign({}, conf.enabled || {}),
+      fixedDay: Object.assign({}, conf.fixedDay || {}),
+      allowSelfAssign: !!conf.allowSelfAssign
+    };
+    _planDraftChild = child;
+  }
+  return _planDraft;
+}
+
+function _dropPlanDraft() { _planDraft = null; _planDraftChild = ''; }
+
+function _planDirty(child) {
+  if (!_planDraft || _planDraftChild !== child) return false;
+  const conf = DB.data.weeklyConfig[child] || {};
+  return JSON.stringify(conf.enabled||{}) !== JSON.stringify(_planDraft.enabled)
+    || JSON.stringify(conf.fixedDay||{}) !== JSON.stringify(_planDraft.fixedDay)
+    || !!conf.allowSelfAssign !== !!_planDraft.allowSelfAssign;
+}
+
+/* 云端同步状态条（依赖 app-sync.js 的 SYNC.cloudHint） */
+function _syncBoxHtml() {
+  const hasSync = typeof SYNC !== 'undefined' && SYNC.cloudHint;
+  const s = hasSync ? SYNC.cloudHint() : { level:'warn', text:'本版本缺少同步模块，数据仅保存在本机' };
+  const cls = s.level==='ok' ? 'sync-ok' : (s.level==='err' ? 'sync-err' : 'sync-warn');
+  const icon = s.level==='ok' ? '✅' : (s.level==='err' ? '⚠️' : '☁️');
+  const setupBtn = `<button class="btn-mini sync-btn" id="btnSyncSetup">⚙️ 开启/修改</button>`;
+  const nowBtn = s.level==='ok' ? `<button class="btn-mini sync-btn" id="btnSyncNow">🔄 立即同步</button>` : '';
+  return `<div class="sync-box ${cls}"><span class="sync-ic">${icon}</span><span class="sync-txt">${s.text}</span>${nowBtn}${setupBtn}</div>`;
+}
+
 function renderMomPlans(body, child) {
-  const conf = DB.data.weeklyConfig[child];
+  const conf = DB.data.weeklyConfig[child] || {};
+  const d = _draftOf(child);
+  const dirty = _planDirty(child);
+  const meta = (DB.data.planMeta && DB.data.planMeta[child]) || null;
+  const sync = (typeof SYNC !== 'undefined' && SYNC.cloudHint) ? SYNC.cloudHint() : null;
+
   body.innerHTML = `
+    ${_syncBoxHtml()}
     <div class="section-card">
       <div class="section-title">⚙️ 每周计划配置</div>
-      <p class="small muted">修改每周次数；点亮星期几 = 固定到那几天（可多选，如周一/周三/周五）</p>
+      <p class="small muted">修改每周次数；点亮星期几 = 固定到那几天（可多选）。<br>改完记得点下方<b>「💾 保存并同步到全家」</b>，其他手机/电脑会自动更新。</p>
       <div id="planList"></div>
       <label class="mt-12" style="display:flex; align-items:center; gap:6px;">
-        <input type="checkbox" id="allowSelfAssign" ${conf.allowSelfAssign?'checked':''} />
+        <input type="checkbox" id="allowSelfAssign" ${d.allowSelfAssign?'checked':''} />
         允许孩子自己分配每日计划
       </label>
     </div>
 
+    <div class="plan-save-bar ${dirty?'active':''}">
+      <span class="plan-save-status">${dirty ? '<span class="dirty-dot">●</span> 有未保存的修改' : '✅ 已全部保存'}</span>
+      <span class="plan-save-actions">
+        <button class="btn-secondary" id="planDiscard" style="${dirty?'':'display:none'}">↩️ 撤销修改</button>
+        <button class="btn-finish" id="planSave" ${dirty?'':'disabled'}>💾 保存并同步到全家</button>
+      </span>
+    </div>
+
     <div class="section-card">
       <div class="section-title">📅 本周分配预览</div>
+      <p class="small muted">预览为当前已保存的实际分配；保存新配置后，孩子端打开会按新配置重新分配。</p>
       <div class="week-grid" id="weekGrid"></div>
       <div id="weekPlanList"></div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-title">🕒 最近修改</div>
+      <p class="small muted">${meta ? (meta.by + ' · ' + (meta.atLabel || fmtTs(meta.at))) : '还没有修改记录'}</p>
     </div>
   `;
 
   const list = body.querySelector('#planList');
   list.innerHTML = PLAN_LIBRARY.map(p => {
-    const fixed = normalizeFixed(conf.fixedDay[p.id]);
+    const fixed = normalizeFixed(d.fixedDay[p.id]);
     return `
     <div class="plan-edit-row">
       <div class="per-name">
@@ -2749,70 +2826,148 @@ function renderMomPlans(body, child) {
       </div>
       <div class="per-times">
         <span class="small muted">每周</span>
-        <input type="number" data-pid="${p.id}" data-f="times" value="${conf.enabled[p.id]}" min="0" max="7" />
+        <input type="number" data-pid="${p.id}" data-f="times" value="${d.enabled[p.id]}" min="0" max="7" />
         <span class="small muted">次</span>
       </div>
-      <span class="tag ${conf.enabled[p.id]?'tag-done':'tag-pending'}">${conf.enabled[p.id]?'开启':'关闭'}</span>
+      <span class="tag ${d.enabled[p.id]>0?'tag-done':'tag-pending'}">${d.enabled[p.id]>0?'开启':'关闭'}</span>
       <div class="day-pick" data-pid="${p.id}">
-        ${DAYS.map(d => {
-          const on = fixed.includes(d);
-          const wknd = ['sat','sun'].includes(d);
-          return `<span data-day="${d}" class="${on?'active':''} ${wknd?'weekend':''}">${DAY_NAMES[d].replace('周','')}</span>`;
+        ${DAYS.map(dy => {
+          const on = fixed.includes(dy);
+          const wknd = ['sat','sun'].includes(dy);
+          return `<span data-day="${dy}" class="${on?'active':''} ${wknd?'weekend':''}">${DAY_NAMES[dy].replace('周','')}</span>`;
         }).join('')}
       </div>
     </div>
   `;
   }).join('');
 
-  // 次数修改
+  /* 刷新底部保存栏状态（草稿变了就亮起来） */
+  const refreshSaveUI = () => {
+    const isDirty = _planDirty(child);
+    const bar = body.querySelector('.plan-save-bar');
+    if (bar) {
+      bar.classList.toggle('active', isDirty);
+      const st = bar.querySelector('.plan-save-status');
+      if (st) st.innerHTML = isDirty ? '<span class="dirty-dot">●</span> 有未保存的修改' : '✅ 已全部保存';
+      const saveBtn = bar.querySelector('#planSave');
+      if (saveBtn) saveBtn.disabled = !isDirty;
+      const disc = bar.querySelector('#planDiscard');
+      if (disc) disc.style.display = isDirty ? '' : 'none';
+    }
+  };
+
+  /* 次数修改（只改草稿，不保存） */
   list.querySelectorAll('input[data-f=times]').forEach(inp => {
     inp.onchange = () => {
-      conf.enabled[inp.dataset.pid] = +inp.value || 0;
-      DB.save();
-      renderMomPlans(body, child);
+      _draftOf(child).enabled[inp.dataset.pid] = Math.max(0, Math.min(7, +inp.value || 0));
+      const row = inp.closest('.plan-edit-row');
+      const tag = row.querySelector('.tag');
+      const on = d.enabled[inp.dataset.pid] > 0;
+      tag.className = 'tag ' + (on ? 'tag-done' : 'tag-pending');
+      tag.textContent = on ? '开启' : '关闭';
+      refreshSaveUI();
     };
   });
-  // 多选固定日：点击点亮/熄灭
+  /* 多选固定日：点击点亮/熄灭（只改草稿） */
   list.querySelectorAll('.day-pick span').forEach(btn => {
     btn.onclick = () => {
       const pid = btn.parentElement.dataset.pid;
       const day = btn.dataset.day;
-      const fixed = normalizeFixed(conf.fixedDay[pid]);
+      const fixed = normalizeFixed(_draftOf(child).fixedDay[pid]);
       const i = fixed.indexOf(day);
       if (i >= 0) fixed.splice(i, 1); else fixed.push(day);
-      conf.fixedDay[pid] = fixed;
-      DB.save();
+      _draftOf(child).fixedDay[pid] = fixed;
       btn.classList.toggle('active', fixed.includes(day));
-      // 当天计划即时重算（清掉今天已生成的缓存，下次进入孩子端重新分配）
-      const uid = child;
-      if (DB.data.studyDaily[uid]) delete DB.data.studyDaily[uid][today()];
-      DB.save();
+      refreshSaveUI();
     };
   });
-  body.querySelector('#allowSelfAssign').onchange = (e) => {
-    conf.allowSelfAssign = e.target.checked;
-    DB.save();
-  };
+  const selfBox = body.querySelector('#allowSelfAssign');
+  if (selfBox) {
+    selfBox.onchange = (e) => {
+      _draftOf(child).allowSelfAssign = e.target.checked;
+      refreshSaveUI();
+    };
+  }
+
+  /* 保存并同步 */
+  const saveBtn = body.querySelector('#planSave');
+  if (saveBtn) {
+    saveBtn.onclick = () => {
+      const dd = _draftOf(child);
+      const cfg = DB.data.weeklyConfig[child] || (DB.data.weeklyConfig[child] = { enabled:{}, fixedDay:{}, allowSelfAssign:false });
+      cfg.enabled = Object.assign({}, dd.enabled);
+      cfg.fixedDay = Object.assign({}, dd.fixedDay);
+      cfg.allowSelfAssign = !!dd.allowSelfAssign;
+      // 记录“谁在什么时候改的”，随云端同步，全家可见
+      const me = (typeof AUTH !== 'undefined' && AUTH.current) ? (AUTH.current() || {}) : {};
+      const who = me.name || me.username || '妈妈';
+      if (!DB.data.planMeta) DB.data.planMeta = {};
+      DB.data.planMeta[child] = { by: who, at: Date.now(), atLabel: fmtTs(Date.now()) };
+      // 清掉孩子今天已生成的计划缓存：孩子端下次打开自动按新配置重排
+      if (DB.data.studyDaily[child]) delete DB.data.studyDaily[child][today()];
+      _dropPlanDraft();
+      DB.save();
+      renderMomPlans(body, child);
+      toast('💾 已保存，正在同步到云端…', 1800);
+      setTimeout(() => {
+        if (typeof SYNC !== 'undefined' && SYNC.pushNow) {
+          SYNC.pushNow().then(r => {
+            if (r && r.ok) toast('✅ 已同步：其他手机/电脑打开会自动看到新计划', 3000);
+            else if (r && r.msg) toast('☁️ 已存在本机；云端同步未完成：' + r.msg, 4000);
+          });
+        } else {
+          toast('☁️ 已保存在本机（未连接云端，其他设备看不到）', 3500);
+        }
+      }, 80);
+    };
+  }
+  /* 撤销修改 */
+  const discBtn = body.querySelector('#planDiscard');
+  if (discBtn) {
+    discBtn.onclick = () => {
+      _dropPlanDraft();
+      renderMomPlans(body, child);
+      toast('已撤销全部修改');
+    };
+  }
+  /* 同步操作按钮 */
+  const setupBtn = body.querySelector('#btnSyncSetup');
+  if (setupBtn) {
+    setupBtn.onclick = () => { if (typeof openSyncSetup === 'function') openSyncSetup(); };
+  }
+  const nowBtn = body.querySelector('#btnSyncNow');
+  if (nowBtn) {
+    nowBtn.onclick = async () => {
+      nowBtn.disabled = true;
+      nowBtn.textContent = '🔄 同步中…';
+      const r = await (typeof SYNC !== 'undefined' && SYNC.syncNow ? SYNC.syncNow() : Promise.resolve({ok:false,msg:'无同步模块'}));
+      nowBtn.disabled = false;
+      nowBtn.textContent = '🔄 立即同步';
+      if (r && r.ok) toast('✅ 已同步最新数据', 1800);
+      else toast('❌ ' + ((r&&r.msg)||'同步失败'), 3000);
+      const box = body.querySelector('.sync-box');
+      if (box && typeof SYNC !== 'undefined' && SYNC.cloudHint) box.outerHTML = _syncBoxHtml();
+    };
+  }
 
   // 周预览
-  body.querySelector('#weekGrid').innerHTML = DAYS.map(d => `
-    <div class="week-day ${['sat','sun'].includes(d)?'weekend':''}">${DAY_NAMES[d]}</div>
+  body.querySelector('#weekGrid').innerHTML = DAYS.map(dy => `
+    <div class="week-day ${['sat','sun'].includes(dy)?'weekend':''}">${DAY_NAMES[dy]}</div>
   `).join('');
 
   const start = (()=>{
-    const d = new Date();
-    const day = d.getDay();
-    const diff = (day === 0 ? -6 : 1) - day;
-    d.setDate(d.getDate() + diff);
-    return d.toISOString().slice(0,10);
+    const dt = new Date();
+    const dy = dt.getDay();
+    const diff = (dy === 0 ? -6 : 1) - dy;
+    dt.setDate(dt.getDate() + diff);
+    return dt.toISOString().slice(0,10);
   })();
-  const end = addDays(start, 6);
   const userDaily = DB.data.studyDaily[child] || {};
   const preview = [];
   for (let i = 0; i < 7; i++) {
-    const d = addDays(start, i);
-    const plans = userDaily[d]?.plans || [];
-    preview.push({ d, plans });
+    const dstr = addDays(start, i);
+    const plans = (userDaily[dstr] && userDaily[dstr].plans) || [];
+    preview.push({ d: dstr, plans });
   }
   body.querySelector('#weekPlanList').innerHTML = preview.map(({ d, plans }) => {
     if (!plans.length) return `<div class="muted small mt-12">${d}（${DAY_NAMES[dayKey(new Date(d))]}）: 无任务</div>`;
@@ -3115,12 +3270,18 @@ function renderMomSettings(body) {
     </div>
 
     <div class="section-card">
+      <div class="section-title">☁️ 多设备云同步</div>
+      <p class="small muted">开启后，学习计划、积分、作业等数据自动同步：妈妈在一台设备保存，全家任何手机/电脑打开网站都会自动更新。</p>
+      <div id="syncCardBody"></div>
+    </div>
+
+    <div class="section-card">
       <div class="section-title">💾 数据管理</div>
       <div class="settings-row">
         <button class="btn-finish" id="exportData">📤 导出 JSON</button>
         <button class="btn-finish" id="resetData" style="background:#E74C3C; box-shadow:0 4px 0 #922B21;">🗑 清空所有数据</button>
       </div>
-      <p class="small muted mt-12">数据存储在浏览器本地（localStorage），清理浏览器数据会清空学习记录</p>
+      <p class="small muted mt-12">数据本机会缓存一份；开启上方「多设备云同步」后还会自动同步到云端。清空浏览器数据前请先导出备份。</p>
     </div>
 
     <div class="section-card">
@@ -3222,6 +3383,9 @@ function renderMomSettings(body) {
     }
   };
 
+  // 云同步状态卡
+  renderSyncCard(body);
+
   // 数据导出/重置
   body.querySelector('#exportData').onclick = () => {
     const blob = new Blob([JSON.stringify(DB.data, null, 2)], { type:'application/json' });
@@ -3237,6 +3401,128 @@ function renderMomSettings(body) {
 
   // 局域网IP
   body.querySelector('#lanUrl').textContent = location.origin;
+}
+
+/* ===================== 多设备云同步（设置页卡片 + 配置弹窗） ===================== */
+function renderSyncCard(scope) {
+  const box = scope.querySelector('#syncCardBody');
+  if (!box) return;
+  const hasSync = typeof SYNC !== 'undefined';
+  const info = (hasSync && SYNC.info) ? SYNC.info() : { connected:false, state:'off', mode:'local', lastSyncAt:0, lastError:'' };
+  const hint = (hasSync && SYNC.cloudHint) ? SYNC.cloudHint() : { level:'warn', text:'' };
+  const modeTxt = info.mode === 'jsonbin' ? 'JSONBin 云端' : info.mode === 'api' ? '自建后端' : '仅本机';
+  let stHtml;
+  if (info.connected) stHtml = '<span style="color:#1E8449;font-weight:bold;">✅ 已连接（' + modeTxt + '）</span>';
+  else if (info.state === 'keyerror') stHtml = '<span style="color:#C0392B;font-weight:bold;">⚠️ 密钥错误，同步已暂停</span>';
+  else if (info.state === 'error' || info.state === 'on') stHtml = '<span style="color:#B9770E;font-weight:bold;">⚠️ ' + (info.lastError || '连接中…') + '</span>';
+  else stHtml = '<span style="color:#856404;font-weight:bold;">⭕ 未开启（数据仅保存在本机）</span>';
+
+  box.innerHTML = `
+    <p class="small" style="line-height:1.8;">状态：${stHtml}</p>
+    <p class="small muted" style="line-height:1.6;">${hint.text}</p>
+    ${info.lastSyncAt ? `<p class="small muted">最近一次同步：${fmtTs(info.lastSyncAt)}</p>` : ''}
+    <div class="settings-row">
+      <button class="btn-finish" id="syncNowBtn" ${info.connected ? '' : 'disabled'} style="background:#27AE60; box-shadow:0 4px 0 #1E8449;">🔄 立即同步</button>
+      <button class="btn-finish" id="syncSetupBtn" style="background:#8E44AD; box-shadow:0 4px 0 #6C3483;">${info.connected ? '⚙️ 修改连接' : '🔌 开启/连接'}</button>
+    </div>
+  `;
+  const nw = box.querySelector('#syncNowBtn');
+  if (nw) {
+    nw.onclick = async () => {
+      nw.disabled = true;
+      nw.textContent = '🔄 同步中…';
+      const r = await ((hasSync && SYNC.syncNow) ? SYNC.syncNow() : Promise.resolve({ ok:false, msg:'同步模块未加载' }));
+      nw.disabled = false;
+      nw.textContent = '🔄 立即同步';
+      if (r && r.ok) toast('✅ 同步完成', 1800);
+      else toast('❌ ' + ((r && r.msg) || '同步失败'), 3000);
+      renderSyncCard(scope);
+    };
+  }
+  const sb = box.querySelector('#syncSetupBtn');
+  if (sb) sb.onclick = () => openSyncSetup();
+}
+
+/* 配置云同步弹窗：填写 jsonbin Bin ID + Master Key → 保存并连接 */
+function openSyncSetup() {
+  const mb = $('modalBody');
+  if (!mb) return;
+  const cfg = (DB.data && DB.data._syncConfig) || {};
+  const hasSync = typeof SYNC !== 'undefined';
+  const connected = hasSync && SYNC.info && SYNC.info().connected;
+  mb.innerHTML = `
+    <h3 style="color:#7D3C98; margin:0 0 10px;">☁️ 多设备云同步设置</h3>
+    <p class="small muted" style="line-height:1.7;">学习计划、积分、作业会保存到免费云端。妈妈在一台设备保存后，<b>全家任何手机/电脑打开网站都会自动更新</b>。每台设备只需设置一次。</p>
+    <div style="margin:10px 0;"><label style="font-weight:bold; display:block; margin-bottom:4px;">① Bin ID（jsonbin.io → Create Bin 后，URL 中 /v3/b/ 后面那串）</label>
+      <input type="text" id="sbBinId" class="text-input" style="width:100%;" placeholder="例：65f2a1b9dc74654018b9xxxx" value="${cfg.binUrl ? (cfg.binUrl.split('/').pop() || '') : ''}" /></div>
+    <div style="margin:10px 0;"><label style="font-weight:bold; display:block; margin-bottom:4px;">② X-Master-Key（jsonbin 头像 → API Keys 里复制）</label>
+      <input type="password" id="sbKey" class="text-input" style="width:100%;" placeholder="粘贴 X-Master-Key" value="${cfg.masterKey || ''}" /></div>
+    <div style="margin:10px 0;"><label style="font-weight:bold; display:block; margin-bottom:4px;">③ X-Access-Key（选填；没设置就留空）</label>
+      <input type="password" id="sbAccess" class="text-input" style="width:100%;" placeholder="选填" value="${cfg.accessKey || ''}" /></div>
+    <div id="sbResult" style="display:none; margin:8px 0;" class="small"></div>
+    <div class="modal-actions" style="flex-wrap:wrap;">
+      <button class="btn-secondary" id="sbCancel">取消</button>
+      ${connected ? '<button class="btn-secondary" id="sbClear" style="color:#C0392B;">🗑 清除连接</button>' : ''}
+      <button class="btn-finish" id="sbSave">💾 保存并连接</button>
+    </div>
+    <details style="margin-top:10px;"><summary style="cursor:pointer; color:#4A90E2;" class="small">📖 没有 jsonbin 账号？3 步免费开通</summary>
+      <div style="line-height:1.9; padding:10px 12px; background:#f6f6f6; border-radius:8px;" class="small muted">
+        1) 打开 <b>https://jsonbin.io</b> → Sign up 注册（用邮箱即可）→ 登录<br>
+        2) 右上角点 <b>+ Create Bin</b> → 内容随便填 → <b>Create</b>。成功后网址形如 …/v3/b/<b>65f2a1b9xxxx</b>，复制 <b>65f2a1b9xxxx</b> 这串 ID<br>
+        3) 点右上角头像 → <b>API Keys</b> → 复制 <b>X-Master-Key</b> 整串<br>
+        然后回到本页，把 ID 和 Key 填到上面保存即可。免费版每月 1 万次读写，一家四口完全够用。
+      </div>
+    </details>
+  `;
+  $('modal').classList.remove('hidden');
+  const setRes = (txt, ok) => {
+    const el = $('sbResult');
+    if (!el) return;
+    el.style.display = 'block';
+    el.style.color = ok ? '#1E8449' : '#C0392B';
+    el.textContent = txt;
+  };
+  $('sbCancel').onclick = () => closeModal();
+  $('sbSave').onclick = async () => {
+    const binId = ($('sbBinId') || {}).value ? $('sbBinId').value.trim() : '';
+    const key = ($('sbKey') || {}).value ? $('sbKey').value.trim() : '';
+    const acc = ($('sbAccess') || {}).value ? $('sbAccess').value.trim() : '';
+    if (!binId || !key) { setRes('请填写 Bin ID 和 X-Master-Key 两项', false); return; }
+    const btn = $('sbSave');
+    btn.disabled = true;
+    btn.textContent = '⏳ 正在连接并同步…';
+    setRes('正在连接并上传首次数据…', true);
+    if (!hasSync || !SYNC.setCloud) {
+      btn.disabled = false;
+      btn.textContent = '💾 保存并连接';
+      setRes('同步模块未加载，请刷新页面后重试', false);
+      return;
+    }
+    try {
+      const r = await SYNC.setCloud(binId, key, acc);
+      btn.disabled = false;
+      btn.textContent = '💾 保存并连接';
+      if (r && r.ok) {
+        setRes('✅ 已连接云端并开始同步！其他设备打开网站会自动获取到数据。', true);
+        setTimeout(closeModal, 2000);
+      } else {
+        setRes('❌ ' + ((r && r.msg) || '连接失败，请检查 Bin ID / Key 是否正确'), false);
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = '💾 保存并连接';
+      setRes('❌ 连接异常：' + (e && e.message), false);
+    }
+  };
+  const clr = $('sbClear');
+  if (clr) {
+    clr.onclick = async () => {
+      closeModal();
+      if (hasSync && SYNC.clearCloud) await SYNC.clearCloud();
+      toast('已清除云端连接设置，数据将只保存在本机');
+      route();
+    };
+  }
 }
 
 /* 妈妈推送 */
