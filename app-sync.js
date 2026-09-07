@@ -313,8 +313,20 @@ function _applyRemoteDoc(rd, silent) {
   try { localStorage.setItem(APP.dbKey, JSON.stringify(DB.data)); } catch (e) {}
   SYNC.base = _snapshot(DB.data);
   _setCloudResult();
+  /* 智能刷新：绝不在用户正在编辑/进行流程时整页重建 */
+  const cleanHash = (location.hash || '').replace(/^#\/?/, '');
+  const momPage = cleanHash.indexOf('mother/') === 0;
+  const planEditing = momPage && cleanHash.indexOf('/plans/') > 0 && !!_planDraft;
+  const flowBusy = !!APP.flowActive || !!APP.recTimer;   // 孩子正在录音/做任务
   if (modalOpen) {
     toast('☁️ 收到其他设备的新数据，关闭弹窗后自动刷新', 2500);
+  } else if (planEditing) {
+    // 妈妈正在改计划（有未保存草稿）：只合并数据，不重建页面，避免丢焦点/被打断
+    if (!silent) toast('☁️ 已收到新数据，不影响当前编辑，保存时会一并带上', 2000);
+  } else if (flowBusy) {
+    if (!silent) toast('☁️ 已收到其他设备的新数据', 1600);
+  } else if (momPage && silent) {
+    // 妈妈在后台浏览（非编辑）：自动轮询只静默合并，绝不打断翻看/滚动；切页或手动同步时自然刷新
   } else {
     route();
     if (!silent) toast('☁️ 已同步最新数据', 1500);

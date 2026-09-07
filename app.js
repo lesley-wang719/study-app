@@ -2943,8 +2943,13 @@ function renderMomPlans(body, child) {
       const r = await (typeof SYNC !== 'undefined' && SYNC.syncNow ? SYNC.syncNow() : Promise.resolve({ok:false,msg:'无同步模块'}));
       nowBtn.disabled = false;
       nowBtn.textContent = '🔄 立即同步';
-      if (r && r.ok) toast('✅ 已同步最新数据', 1800);
-      else toast('❌ ' + ((r&&r.msg)||'同步失败'), 3000);
+      if (r && r.ok) {
+        toast('✅ 已同步最新数据', 1800);
+        // 无未保存草稿 → 整页刷新显示最新；编辑中则保持不打断（数据已合并，保存时生效）
+        if (!_planDraft) { route(); return; }
+      } else {
+        toast('❌ ' + ((r&&r.msg)||'同步失败'), 3000);
+      }
       const box = body.querySelector('.sync-box');
       if (box && typeof SYNC !== 'undefined' && SYNC.cloudHint) box.outerHTML = _syncBoxHtml();
     };
@@ -3434,9 +3439,8 @@ function renderSyncCard(scope) {
       const r = await ((hasSync && SYNC.syncNow) ? SYNC.syncNow() : Promise.resolve({ ok:false, msg:'同步模块未加载' }));
       nw.disabled = false;
       nw.textContent = '🔄 立即同步';
-      if (r && r.ok) toast('✅ 同步完成', 1800);
-      else toast('❌ ' + ((r && r.msg) || '同步失败'), 3000);
-      renderSyncCard(scope);
+      if (r && r.ok) { toast('✅ 同步完成', 1800); route(); }
+      else { toast('❌ ' + ((r && r.msg) || '同步失败'), 3000); renderSyncCard(scope); }
     };
   }
   const sb = box.querySelector('#syncSetupBtn');
@@ -3504,7 +3508,7 @@ function openSyncSetup() {
       btn.textContent = '💾 保存并连接';
       if (r && r.ok) {
         setRes('✅ 已连接云端并开始同步！其他设备打开网站会自动获取到数据。', true);
-        setTimeout(closeModal, 2000);
+        setTimeout(() => { closeModal(); route(); }, 2000);
       } else {
         setRes('❌ ' + ((r && r.msg) || '连接失败，请检查 Bin ID / Key 是否正确'), false);
       }

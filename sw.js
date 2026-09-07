@@ -1,10 +1,11 @@
 /* ============================================
    学习小天地 - Service Worker
    实现离线缓存 + 后台同步 + 推送接收
+   v1.6.1：自动同步到达时不再整页重建打断编辑/录音（草稿、操作状态保留）
    v1.6.0：① 预缓存加入同步层脚本 ② 后台校验节流（弱网不拥堵）
    ============================================ */
 
-const CACHE_VERSION = 'study-app-v1.6.0';
+const CACHE_VERSION = 'study-app-v1.6.1';
 const STATIC_CACHE = CACHE_VERSION + '-static';
 const DYNAMIC_CACHE = CACHE_VERSION + '-dynamic';
 
