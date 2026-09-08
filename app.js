@@ -49,6 +49,19 @@ const PROFILES = {
   }
 };
 
+/* 孩子自定义头像：优先显示用户自己上传的照片（users[uid].avatar，
+   存"不带 data: 前缀的 base64"，避免被云端同步的照片占位符机制误伤），
+   否则显示系统默认头像 emoji */
+function avatarContent(uid) {
+  const u = (DB && DB.data && DB.data.users) ? DB.data.users[uid] : null;
+  const a = u && u.avatar;
+  if (a) {
+    const src = a.indexOf('data:') === 0 ? a : 'data:image/jpeg;base64,' + a;
+    return `<img class="avatar-img" src="${src}" alt="头像">`;
+  }
+  return ((PROFILES[uid] || {}).avatar) || '🧑';
+}
+
 /* 宠物图鉴（孩子可自选，等级解锁） */
 const PET_LIBRARY = [
   { type:'rabbit',  emoji:'🐰', name:'小兔子', unlock:1 },
@@ -64,6 +77,20 @@ const PET_LIBRARY = [
   { type:'unicorn', emoji:'🦄', name:'独角兽', unlock:5 },
   { type:'owl',     emoji:'🦉', name:'猫头鹰', unlock:6 }
 ];
+
+/* 宠物"长大"：部分宠物成年后换成更大的形态（其余保持原样，靠尺寸与阶段徽章体现长大） */
+const PET_ADULT_EMOJI = { rabbit:'🐇', dragon:'🐉', cat:'🐈', dog:'🐕', chick:'🐔', tiger:'🐅' };
+/* 宠物成长阶段：跟着等级变化，等级越高体型越大、形态越成熟
+   lv 1-2 幼崽期 → 3-5 成长期 → 6-9 成熟期 → 10+ 霸主期 */
+function petStageInfo(pet) {
+  const base = (PET_LIBRARY.find(x => x.type === pet.type) || {}).emoji || pet.emoji || '🐰';
+  const adult = PET_ADULT_EMOJI[pet.type] || base;
+  const lv = pet.level || 1;
+  if (lv <= 2) return { emoji: base, tag: '幼崽期', size: 0.9 };
+  if (lv <= 5) return { emoji: adult, tag: '成长期', size: 1.12 };
+  if (lv <= 9) return { emoji: adult, tag: '成熟期', size: 1.3 };
+  return { emoji: adult, tag: '霸主期', size: 1.5 };
+}
 
 /* 宠物装扮商店（积分购买） */
 const PET_OUTFITS = [
@@ -383,6 +410,9 @@ function fromNow(days) {
 
 function pick(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+/* uid 的别名：部分页面函数把参数命名为 uid（如 renderPlans(uid)/generateDailyPlans(uid)），
+   会遮蔽顶层的 uid() 函数；这些函数内部需要生成唯一 id 时必须用 genUid()，否则会 TypeError */
+function genUid() { return uid(); }
 
 function toast(text, ms=2000) {
   const el = $('toast');
@@ -418,6 +448,38 @@ function hashSimilar(h1, h2) {
   let same = 0;
   for (let i=0;i<h1.length;i++) if (h1[i] === h2[i]) same++;
   return same / h1.length;
+}
+
+/* 图片压缩：限制最长边并转 JPEG，避免原图（尤其系统相机原图）过大，
+   把 localStorage/同步数据写爆，导致拍照后出现"存储空间不足/内存不够"提示 */
+function compressImageDataUrl(dataUrl, maxSide = 1280, quality = 0.78) {
+  return new Promise((resolve) => {
+    if (!dataUrl || dataUrl.indexOf('data:image') !== 0) return resolve(dataUrl);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let { width: w, height: h } = img;
+        if (!w || !h) return resolve(dataUrl);
+        if (Math.max(w, h) > maxSide) {
+          const r = maxSide / Math.max(w, h);
+          w = Math.round(w * r);
+          h = Math.round(h * r);
+        }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);          // 透明 PNG → 白底，避免转 JPEG 变黑
+        ctx.drawImage(img, 0, 0, w, h);
+        const out = c.toDataURL('image/jpeg', quality);
+        resolve(out.length < dataUrl.length ? out : dataUrl); // 压缩反而更大则保留原图
+      } catch (e) {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 /* ===================== 第 3 节：存储管理 ===================== */
@@ -536,9 +598,43 @@ const DB = {
   save() {
     try {
       localStorage.setItem(APP.dbKey, JSON.stringify(this.data));
+      return true;
     } catch(e) {
+      // 存储已满：先自动清理最早的作业照片腾出空间，再重试一次
+      if (this.autoCleanOldestPhotos()) {
+        try {
+          localStorage.setItem(APP.dbKey, JSON.stringify(this.data));
+          toast('已自动清理最早几天的作业照片，释放了存储空间');
+          return true;
+        } catch(e2) { /* ignore */ }
+      }
       console.warn('save db error', e);
       toast('存储空间不足，请清理历史照片');
+      return false;
+    }
+  },
+  /* 存储满了时，删除最早一天（今天除外）的作业照片，保留文字记录 */
+  autoCleanOldestPhotos() {
+    try {
+      const hw = this.data.homework || {};
+      let oldest = null;                       // { child, date }
+      for (const cid of Object.keys(hw)) {
+        const days = hw[cid] || {};
+        for (const dt of Object.keys(days)) {
+          if (dt === today()) continue;        // 绝不动今天的作业
+          if (!oldest || dt < oldest.date) oldest = { child: cid, date: dt };
+        }
+      }
+      if (!oldest) return false;
+      const day = hw[oldest.child][oldest.date];
+      if (day && Array.isArray(day.photos) && day.photos.length) {
+        day.photos = [];
+        day.photo = '';
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
     }
   },
   reset() {
@@ -574,6 +670,11 @@ const DB = {
     u.photoHashes = u.photoHashes || [];
     u.photoHashes.push(hash);
     if (u.photoHashes.length > 200) u.photoHashes = u.photoHashes.slice(-150);
+  },
+  removePhotoHash(id, hash) {
+    const u = this.user(id);
+    if (!u.photoHashes || !hash) return;
+    u.photoHashes = u.photoHashes.filter(h => h !== hash);
   },
   hasSimilarPhoto(id, hash, threshold=0.92) {
     const u = this.user(id);
@@ -790,6 +891,10 @@ async function takePhoto(opts={}) {
     }
     if (!dataUrl) return null;
   }
+  // 统一压缩照片：原图过大（尤其系统相机原图，常达数 MB）会写满本地存储，
+  // 触发"存储空间不足/内存不够"的提示，页面却看似保存成功
+  dataUrl = await compressImageDataUrl(dataUrl);
+  if (!dataUrl) return null;
   const result = await finishPhoto(dataUrl, uid, allowDup);
   if (result === 'dup') return await takePhoto(opts);
   return result;
@@ -819,20 +924,118 @@ async function takePhotos({ tip='把内容拍清楚 📸', uid=null, max=9 } = {
   return arr;
 }
 
-/* 照片数组 → 网格 HTML（兼容旧的单张字符串；空串=照片未同步到本机） */
-function photosGridHtml(photos, cls='') {
+/* 照片数组 → 网格 HTML（兼容旧的单张字符串；空串=照片未同步到本机）
+   deletable=true 时每张照片带删除角标（用于"今日作业"）；img 带 data-src，点击可放大 */
+function photosGridHtml(photos, cls='', deletable=false) {
   if (!photos || !photos.length) return '';
-  return `<div class="photo-grid ${cls}">` + photos.map(p => {
+  const item = (inner, i) => deletable
+    ? `<div class="photo-item-wrap">${inner}<span class="photo-del" data-idx="${i}" title="删除这张">✕</span></div>`
+    : inner;
+  return `<div class="photo-grid ${cls}">` + photos.map((p, i) => {
     const src = typeof p === 'string' ? p : (p && p.dataUrl);
-    if (!src) return `<div class="photo-grid-item photo-missing">📷<span>照片未同步<br>（在本机可见）</span></div>`;
-    return `<img src="${src}" class="photo-grid-item">`;
+    if (!src) return item(`<div class="photo-grid-item photo-missing">📷<span>照片未同步<br>（在本机可见）</span></div>`, i);
+    return item(`<img src="${src}" class="photo-grid-item" data-src="${src}" data-idx="${i}" alt="照片">`, i);
   }).join('') + `</div>`;
 }
-/* 合并照片到数组（兼容旧字段是单张字符串），最多保留 maxN 张 */
+/* 合并照片到数组（兼容旧字段是单张字符串/旧对象），最多保留 maxN 张；
+   新拍照片以 {dataUrl, hash} 对象存储，便于删除时同步移除查重指纹 */
 function mergePhotos(existing, addedOnes, maxN=12) {
   const arr = Array.isArray(existing) ? existing.slice() : (existing ? [existing] : []);
-  for (const p of (addedOnes||[])) arr.push(typeof p === 'string' ? p : p.dataUrl);
+  for (const p of (addedOnes||[])) {
+    if (typeof p === 'string') arr.push(p);
+    else if (p && p.dataUrl) arr.push({ dataUrl: p.dataUrl, hash: p.hash, ts: Date.now() });
+  }
   return arr.slice(0, maxN);
+}
+
+/* ---- 照片点开放大（全屏查看，点任意处关闭） ---- */
+let _photoViewer = null;
+function openPhotoViewer(src) {
+  closePhotoViewer();
+  if (!src) return;
+  _photoViewer = document.createElement('div');
+  _photoViewer.className = 'photo-viewer';
+  _photoViewer.innerHTML = `<img src="${src}" alt="大图">`;
+  _photoViewer.addEventListener('click', closePhotoViewer);
+  document.body.appendChild(_photoViewer);
+}
+function closePhotoViewer() {
+  if (_photoViewer) { _photoViewer.remove(); _photoViewer = null; }
+}
+/* 全局事件委托：点击照片网格里的图片 → 放大（对动态生成的页面也生效） */
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  const img = t && t.closest ? t.closest('img.photo-grid-item[data-src]') : null;
+  if (img && img.dataset.src) openPhotoViewer(img.dataset.src);
+});
+
+/* ---- 更换头像：拍一张 / 从相册选 / 恢复默认 ---- */
+function pickAlbumImage() {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    let settled = false;
+    const finish = (fn) => {
+      if (settled) return;
+      settled = true;
+      if (input.parentNode) input.remove();
+      fn();
+    };
+    input.onchange = () => {
+      const file = input.files && input.files[0];
+      if (!file) { finish(() => resolve(null)); return; }
+      const reader = new FileReader();
+      reader.onload = () => finish(() => resolve(reader.result));
+      reader.onerror = () => finish(() => reject(new Error('读取失败')));
+      reader.readAsDataURL(file);
+    };
+    input.addEventListener('cancel', () => finish(() => resolve(null)));
+    input.click();
+  });
+}
+
+async function changeAvatar(uid) {
+  const act = await showModal(`
+    <h3>🖼 更换我的头像</h3>
+    <p class="small muted">头像会显示在孩子主页上</p>
+    <div class="avatar-choice">
+      <button class="btn-primary" data-result="camera">📷 拍一张</button>
+      <button class="btn-primary" data-result="album" style="background:linear-gradient(135deg,#74B9FF,#4A90E2); box-shadow:0 4px 0 #2E6DA4;">🖼 从相册选择</button>
+      <button class="btn-secondary" data-result="reset">😊 恢复默认</button>
+      <button class="btn-secondary" data-result="cancel">取消</button>
+    </div>
+  `);
+  if (!act || act === 'cancel') return;
+  const u = DB.user(uid);
+  if (act === 'reset') {
+    delete u.avatar;
+    DB.save();
+    toast('已恢复默认头像');
+    return ChildHome.render(uid);
+  }
+  let dataUrl = null;
+  if (act === 'camera') {
+    try {
+      dataUrl = await openCamera({ tip: '拍一张清楚的正面照做头像' });
+    } catch (e) {
+      try { dataUrl = await captureViaSystemCamera(); }
+      catch (e2) { toast('无法访问摄像头'); return; }
+    }
+  } else if (act === 'album') {
+    try { dataUrl = await pickAlbumImage(); }
+    catch (e) { toast('读取相册失败'); return; }
+  }
+  if (!dataUrl) return;
+  // 压成小头像再存：去 data: 前缀，云端同步时不会被当作"照片占位符"替换
+  const small = await compressImageDataUrl(dataUrl, 240, 0.85);
+  if (!small) return;
+  u.avatar = small.replace(/^data:image\/[a-z0-9+.-]+;base64,/, '');
+  DB.save();
+  toast('✅ 头像已更新');
+  ChildHome.render(uid);
 }
 
 /* ===================== 第 7 节：OCR（模拟+真实）===================== */
@@ -998,16 +1201,22 @@ const ChildHome = {
     sec.className = `page page-child theme-${p.gender}`;
     APP.currentUser = uid;
     $('childHeader').style.background = `linear-gradient(135deg, ${p.color} 0%, ${p.colorDeep} 100%)`;
-    $('childAvatar').textContent = p.avatar;
+    // 大头像：自己的照片头像（可点击更换）
+    const avatarBox = $('childAvatar');
+    avatarBox.innerHTML = avatarContent(uid) + `<span class="avatar-cam-hint">📷</span>`;
+    avatarBox.style.cursor = 'pointer';
+    avatarBox.title = '点击更换头像';
+    avatarBox.onclick = () => changeAvatar(uid);
     const u = DB.user(uid);
     const greet = pick([`${u.name}，今天也是元气满满的一天！`, `${u.name}，加油！`, `${u.name}准备好啦吗？`, `${u.name}，我们开始吧～`]);
     $('childGreet').textContent = greet;
     const d = new Date();
     $('childDate').textContent = `${d.getMonth()+1}月${d.getDate()}日 · 周${'日一二三四五六'[d.getDay()]}`;
     $('childStreak').textContent = u.streakDays || 0;
-    // 宠物
+    // 宠物（形态随等级成长）
     const pet = u.pet;
-    let petEmoji = pet.emoji;
+    const petStage = petStageInfo(pet);
+    let petEmoji = petStage.emoji;
     if (pet.state === 'sick') petEmoji = '🤒';
     else if (pet.state === 'cry') petEmoji = '😢';
     else if (pet.state === 'angry') petEmoji = '😠';
@@ -1131,13 +1340,13 @@ async function renderHomework(uid) {
 
     <div class="section-card">
       <div class="section-title">📸 拍照（必须现场拍摄，可拍多张）</div>
-      ${hw.photos && hw.photos.length ? photosGridHtml(hw.photos) :
+      ${hw.photos && hw.photos.length ? photosGridHtml(hw.photos, '', true) :
         `<div style="background:#FFE4EE; color:${p.color}; padding:24px; text-align:center; border-radius:12px; border:2px dashed ${p.color};">
           <div style="font-size:32px">📷</div>
           <div>还未拍照</div>
         </div>`}
       <button class="btn-finish" id="hwTake" style="background:linear-gradient(135deg,#FF8FB1,${p.color})">📸 ${hw.photos && hw.photos.length ? '再加拍一张（已拍'+hw.photos.length+'张）' : '现在拍照'}</button>
-      <p class="small muted text-center mt-12">📌 系统会查重，不能用相册里的旧照片</p>
+      <p class="small muted text-center mt-12">📌 点照片可放大查看，不满意可点 ✕ 删除重拍</p>
     </div>
 
     <div class="section-card">
@@ -1168,11 +1377,28 @@ async function renderHomework(uid) {
     const photos = await takePhotos({ tip:'把作业本拍清楚', uid, max:9 });
     if (!photos.length) return;
     hw.photos = mergePhotos(hw.photos, photos, 12);
-    hw.photo = hw.photos[hw.photos.length-1];   // 兼容旧字段（妈妈端查看）
+    hw.photo = hw.photos.length ? (typeof hw.photos[hw.photos.length-1] === 'string' ? hw.photos[hw.photos.length-1] : hw.photos[hw.photos.length-1].dataUrl) : null; // 兼容旧字段（妈妈端查看）
     DB.save();
     toast(`✅ 拍照成功，共 ${hw.photos.length} 张`);
     renderHomework(uid);
   };
+
+  // 删除某张照片（同时移除查重指纹，之后可放心重拍同一页内容）
+  sub.querySelectorAll('.photo-del').forEach(btn => {
+    btn.onclick = (ev) => {
+      ev.stopPropagation();
+      const i = +btn.dataset.idx;
+      const arr = hw.photos;
+      if (!arr || !arr[i]) return;
+      const old = arr[i];
+      if (old && typeof old !== 'string' && old.hash) DB.removePhotoHash(uid, old.hash);
+      arr.splice(i, 1);
+      hw.photo = arr.length ? (typeof arr[arr.length-1] === 'string' ? arr[arr.length-1] : arr[arr.length-1].dataUrl) : null;
+      DB.save();
+      toast('已删除这张照片');
+      renderHomework(uid);
+    };
+  });
 
   $('#hwDone', sub).onclick = () => {
     if (!$('#hwContent', sub).value.trim()) return toast('请先填写作业内容');
@@ -1559,36 +1785,34 @@ function bigEncourage(text, points) {
    第 13 节：学习计划（17种）
    ============================================================ */
 function generateDailyPlans(uid) {
+  // 今天已经生成过且有任务 → 保留（避免把已完成任务状态重置回待办）
+  const daily = DB.dailyPlan(uid);
+  if (daily.plans && daily.plans.length) return daily;
+
   const p = PROFILES[uid];
   const u = DB.user(uid);
-  const t = today();
-  // 已经生成过且今日？
-  const daily = DB.dailyPlan(uid);
-  // 如果今天未生成，则重新生成（智能分配）
   const weekday = dayKey();
   const conf = DB.data.weeklyConfig[uid];
   if (!conf) return;
   // 生成：根据每周配置，扫描每个计划项在今天是否开启
   const plans = [];
   let total = 0;
+  const pushPlan = (plan) => {
+    plans.push({ planId: plan.id, state: 'pending', uniqId: genUid() });
+    total += plan.duration;
+  };
 
   PLAN_LIBRARY.forEach((plan) => {
     // 1. 妈妈配置的固定日（多选，最高优先级）
     const momFixed = normalizeFixed(conf.fixedDay[plan.id]);
     if (momFixed.length) {
-      if (momFixed.includes(weekday)) {
-        plans.push({ planId: plan.id, state: 'pending' });
-        total += plan.duration;
-      }
+      if (momFixed.includes(weekday)) pushPlan(plan);
       return;
     }
     // 2. 计划内置固定日（兼容单值/数组）
     if (plan.fixedDay) {
       const arr = Array.isArray(plan.fixedDay) ? plan.fixedDay : [plan.fixedDay];
-      if (arr.includes(weekday)) {
-        plans.push({ planId: plan.id, state: 'pending' });
-        total += plan.duration;
-      }
+      if (arr.includes(weekday)) pushPlan(plan);
       return;
     }
     // 3. 周末专属
@@ -1598,17 +1822,14 @@ function generateDailyPlans(uid) {
     // 4. 否则按每周次数智能分配
     const enabled = conf.enabled[plan.id];
     if (!enabled) return;
-    const todayPlan = DB.dailyPlan(uid);
-    const todayUsed = todayPlan.plans.filter(x => x.planId === plan.id).length;
     const weeklyCount = countWeekPlans(uid, plan.id);
-    if (weeklyCount < enabled) {
-      plans.push({ planId: plan.id, state: 'pending' });
-      total += plan.duration;
-    }
+    if (weeklyCount < enabled) pushPlan(plan);
   });
   daily.plans = plans;
   daily.totalDuration = total;
+  daily.generatedAt = Date.now();
   DB.save();
+  return daily;
 }
 
 /* 统计本周该计划项已分配次数 */
@@ -1694,7 +1915,9 @@ async function renderPlans(uid) {
 
   $$('#plansList .task-row', sub).forEach((row, i) => {
     row.querySelector('button').onclick = () => {
-      go(`child/${uid}/planTask/${daily.plans[i].uniqId || (daily.plans[i].uniqId = uid())}`);
+      const it = daily.plans[i];
+      if (!it.uniqId) { it.uniqId = genUid(); DB.save(); } // 旧数据兜底补 id（不能直接用 uid()，会被参数遮蔽）
+      go(`child/${uid}/planTask/${it.uniqId}`);
     };
   });
 }
@@ -2365,7 +2588,8 @@ async function renderPet(uid) {
                   : 'anim-idle';
 
   const outfit = PET_OUTFITS.find(o => o.id === pet.outfit);
-  const bodyEmoji = pet.state==='sick'?'🤒':pet.state==='cry'?'😢':pet.state==='angry'?'😠':pet.state==='confused'?'🤔':pet.emoji;
+  const stage = petStageInfo(pet);
+  const bodyEmoji = pet.state==='sick'?'🤒':pet.state==='cry'?'😢':pet.state==='angry'?'😠':pet.state==='confused'?'🤔':stage.emoji;
 
   const html = `
     <div class="pet-stage-v2">
@@ -2373,13 +2597,13 @@ async function renderPet(uid) {
         <div class="pet-figure ${animClass}">
           ${outfit && outfit.slot==='hat'  ? `<span class="pf pf-hat">${outfit.emoji}</span>` : ''}
           ${outfit && outfit.slot==='face' ? `<span class="pf pf-face">${outfit.emoji}</span>` : ''}
-          <span class="pf-body">${bodyEmoji}</span>
+          <span class="pf-body" style="font-size:${Math.round(84*stage.size)}px;">${bodyEmoji}</span>
           ${outfit && outfit.slot==='neck' ? `<span class="pf pf-neck">${outfit.emoji}</span>` : ''}
           ${outfit && outfit.slot==='hand' ? `<span class="pf pf-hand">${outfit.emoji}</span>` : ''}
         </div>
         <div class="pet-ground"></div>
       </div>
-      <div class="pet-name kid-font">${pet.name}${outfit ? ' ' + outfit.emoji : ''}</div>
+      <div class="pet-name kid-font">${pet.name}<span class="pet-stage-tag">${stage.tag}</span>${outfit ? ' ' + outfit.emoji : ''}</div>
       <div class="pet-level">Lv.${pet.level} · ${pet.exp}/${pet.level*20} EXP</div>
       <div class="kid-font mt-12">${stateMsg}</div>
     </div>
@@ -2391,8 +2615,9 @@ async function renderPet(uid) {
         ${PET_LIBRARY.map(pc => {
           const locked = (pet.level||1) < pc.unlock;
           const cur = pet.type === pc.type;
+          const pcStage = petStageInfo({ type: pc.type, level: pet.level || 1 });
           return `<div class="pet-card ${cur?'cur':''} ${locked?'locked':''}" data-type="${pc.type}">
-            <div class="pc-emoji">${locked?'🔒':pc.emoji}</div>
+            <div class="pc-emoji">${locked?'🔒':pcStage.emoji}</div>
             <div class="pc-name kid-font">${pc.name}</div>
             <div class="pc-sub">${cur ? '我的伙伴' : (locked ? 'Lv.'+pc.unlock+' 解锁' : '点我领养')}</div>
           </div>`;
@@ -2488,11 +2713,18 @@ async function renderPet(uid) {
   sub.querySelector('#feedPet').onclick = () => {
     if ((u.points||0) < 5) return toast('积分不够');
     u.points -= 5;
+    const stageBefore = petStageInfo(u.pet).tag;
     u.pet.exp += 5;
+    let leveled = false;
     while (u.pet.exp >= u.pet.level * 20) {
       u.pet.exp -= u.pet.level * 20;
       u.pet.level++;
-      bigEncourage(`${u.pet.name} 升级了！Lv.${u.pet.level}`, 0);
+      leveled = true;
+    }
+    const stageAfter = petStageInfo(u.pet).tag;
+    if (leveled) {
+      if (stageBefore !== stageAfter) bigEncourage(`${u.pet.name} 长大啦！现在是「${stageAfter}」${petStageInfo(u.pet).emoji}`, 0);
+      else bigEncourage(`${u.pet.name} 升级了！Lv.${u.pet.level}`, 0);
     }
     DB.save();
     renderPet(uid);

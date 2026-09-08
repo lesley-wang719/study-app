@@ -134,6 +134,14 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
   animation: floatAvatar 3s infinite ease-in-out;
 }
 @keyframes floatAvatar { 0%,100%{transform:translateY(0) rotate(-2deg);} 50%{transform:translateY(-5px) rotate(2deg);} }
+.child-avatar-big img.avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.child-avatar-big .avatar-cam-hint {
+  position: absolute; bottom: -6px; right: -6px; font-size: 16px;
+  background: rgba(255,255,255,.9); border-radius: 50%; width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+}
+.child-avatar-big { position: relative; }
 .child-greet h2 {
   font-family: 'KID',cursive; font-size: 20px;
   margin: 0; letter-spacing: 0.5px;
@@ -162,6 +170,14 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
   background: rgba(255,255,255,0.2); color: #fff;
   display: inline-flex; align-items: center; justify-content: center;
 }
+/* 孩子主页右上角：带文字的退出/切换账号按钮（需盖过 .btn-icon 的圆形尺寸） */
+.child-header .btn-logout {
+  width: auto; height: auto; padding: 5px 12px; gap: 4px;
+  border-radius: 18px; font-size: 14px;
+  border: 1px solid rgba(255,255,255,0.45);
+  justify-content: center;
+}
+.child-header .btn-logout:hover { background: rgba(255,255,255,0.32); }
 
 .child-modules {
   padding: 18px 16px;
@@ -432,6 +448,7 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
   box-shadow: 0 3px 0 rgba(0,0,0,0.04), 0 6px 12px rgba(0,0,0,0.04);
 }
 .list-icon { font-size: 28px; width: 44px; text-align: center; flex-shrink: 0; }
+.list-icon img.avatar-img { width: 32px; height: 32px; object-fit: cover; border-radius: 50%; vertical-align: middle; }
 .list-body { flex: 1; }
 .list-title { font-family: 'KID',cursive; font-size: 15px; font-weight: bold; }
 .list-sub { color: #888; font-size: 12px; margin-top: 2px; }
@@ -635,6 +652,13 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
 }
 .pet-name { font-family: 'KID',cursive; font-size: 18px; margin: 6px 0; }
 .pet-level { color: #555; font-size: 13px; }
+.pet-stage-tag {
+  display:inline-block; font-size:11px; line-height:1.7; padding:0 8px; margin-left:6px;
+  border-radius:999px; background:linear-gradient(135deg,#A855F7,#EC4899);
+  color:#fff; vertical-align:middle; box-shadow:0 2px 5px rgba(168,85,247,.4);
+  animation: stagePulse 2s infinite ease-in-out;
+}
+@keyframes stagePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
 
 /* ===== 宠物舞台 v2（动画+装扮） ===== */
 .pet-stage-v2 {
@@ -1058,7 +1082,15 @@ details[open] summary { color: #C9184A; }
 .login-card:active { transform: scale(.95); }
 .login-card:hover { border-color: #FF4F8B; box-shadow: 0 6px 18px rgba(255,79,139,.25); }
 .login-card-mom { background: linear-gradient(160deg, #FDF2E9, #FAE8DC); }
-.login-avatar { font-size: 40px; line-height: 1.2; }
+.login-avatar {
+  font-size: 40px; line-height: 1.2;
+  width: 56px; height: 56px; margin: 0 auto 4px;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; border-radius: 50%;
+}
+.login-avatar img.avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+/* 换头像弹窗按钮 */
+.avatar-choice { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .login-name { font-weight: 700; font-size: 15px; margin-top: 6px; color: #333; }
 .login-grade { font-size: 12px; color: #999; margin-top: 2px; }
 .login-manual {
@@ -1099,6 +1131,30 @@ details[open] summary { color: #C9184A; }
   line-height: 1.3;
 }
 .photo-grid-item.photo-missing span { font-size: 10px; margin-top: 4px; }
+/* 可删除的照片项（今日作业） */
+.photo-item-wrap { position: relative; width: calc(33.33% - 6px); aspect-ratio: 1; }
+.photo-item-wrap .photo-grid-item { width: 100%; height: 100%; }
+.photo-del {
+  position: absolute; top: -8px; right: -8px; z-index: 3;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #E74C3C; color: #fff; font-size: 14px; line-height: 24px;
+  text-align: center; cursor: pointer; user-select: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,.35); border: 2px solid #fff;
+}
+.photo-del:active { transform: scale(.88); }
+/* 照片点开放大查看 */
+.photo-viewer {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.94);
+  display: flex; align-items: center; justify-content: center;
+  cursor: zoom-out;
+}
+.photo-viewer img {
+  max-width: 95vw; max-height: 92vh; border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.55);
+}
+.photo-viewer img { animation: viewerZoom .18s ease-out; }
+@keyframes viewerZoom { from { transform: scale(.82); opacity: .4; } to { transform: scale(1); opacity: 1; } }
 
 /* ---- 小按钮（账户管理） ---- */
 .btn-mini { padding: 6px 12px; font-size: 13px; border-radius: 8px; }

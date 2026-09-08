@@ -60,8 +60,16 @@ const AUTH = {
     return true;
   },
 
-  logout() {
-    if (!confirm('退出登录吗？')) return;
+  async logout() {
+    const ok = await showModal(`
+      <h3>🚪 退出登录</h3>
+      <p>退出后将回到账号选择页，可切换 Janny / Jackie / 妈妈账号。</p>
+      <div class="modal-actions">
+        <button class="btn-secondary" data-result="no">再想想</button>
+        <button class="btn-primary" data-result="yes">退出登录</button>
+      </div>
+    `);
+    if (ok !== 'yes') return;
     localStorage.removeItem(this.sessKey);
     APP.currentUser = null;
     location.hash = '';
@@ -93,7 +101,7 @@ const AUTH = {
           ${kids.map(a => {
             const p = PROFILES[a.childId] || {};
             return `<div class="login-card" data-acc="${a.id}">
-              <div class="login-avatar">${p.avatar || '🧑'}</div>
+              <div class="login-avatar">${avatarContent(a.childId)}</div>
               <div class="login-name">${a.name || a.username}</div>
               <div class="login-grade">${p.grade || '孩子'}</div>
             </div>`;
@@ -168,7 +176,7 @@ function renderMomAccounts(body) {
       ${accs.map(a => {
         const p = a.role === 'child' ? (PROFILES[a.childId] || {}) : {};
         return `<div class="list-card">
-          <div class="list-icon">${a.role === 'mom' ? '👩‍🦰' : (p.avatar || '🧑')}</div>
+          <div class="list-icon">${a.role === 'mom' ? '👩‍🦰' : avatarContent(a.childId)}</div>
           <div class="list-body">
             <div class="list-title">${a.name}（${a.username}）</div>
             <div class="list-sub">${a.role === 'mom' ? '总账号 · 可看全部' : (p.grade || '孩子')}</div>
