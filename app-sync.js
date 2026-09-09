@@ -309,6 +309,9 @@ function _applyRemoteDoc(rd, silent) {
     if ((_upd(rd) || 0) <= _upd(local)) return false;
     merged = _clone(rd);
   }
+  /* 本机专属配置（_syncConfig 连接信息）绝不随云端数据重建而抹除：
+     否则每次成功拉取合并后连接配置悄悄丢失，刷新后就变成"每次都要重新输入、NO_CLOUD" */
+  if (Object.prototype.hasOwnProperty.call(local, '_syncConfig')) merged._syncConfig = local._syncConfig;
   DB.data = _rehydrate(merged, local);
   try { localStorage.setItem(APP.dbKey, JSON.stringify(DB.data)); } catch (e) {}
   SYNC.base = _snapshot(DB.data);

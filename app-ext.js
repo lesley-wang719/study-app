@@ -537,6 +537,11 @@ const WECHAT_PUSH = {
       console.log('[Wechat] 未配置 SendKey，跳过');
       return { ok: false, reason: 'not_configured' };
     }
+    // 显式开关：关闭时不推送（测试消息走 force 忽略开关）
+    if (!opts.force && cfg.enabled === false) {
+      console.log('[Wechat] 推送开关已关闭，跳过');
+      return { ok: false, reason: 'disabled' };
+    }
     // 免打扰时段
     if (this._inQuiet(cfg)) {
       console.log('[Wechat] 免打扰时段，跳过');
@@ -576,9 +581,9 @@ const WECHAT_PUSH = {
     return h >= a || h < b;  // 跨天
   },
 
-  /** 测试推送 */
+  /** 测试推送（忽略"开关已关闭"状态，用于验证配置） */
   async test() {
-    return await this.send('🧪 测试推送 - 学习小天地', '妈妈你好！\n\n这是一条来自孩子学习系统的测试消息。\n如果你收到这条消息，说明微信推送已经配置成功 🎉\n\n时间：' + new Date().toLocaleString('zh-CN'));
+    return await this.send('🧪 测试推送 - 学习小天地', '妈妈你好！\n\n这是一条来自孩子学习系统的测试消息。\n如果你收到这条消息，说明微信推送已经配置成功 🎉\n\n时间：' + new Date().toLocaleString('zh-CN'), { force: true });
   },
 
   /** 触发场景：孩子今日作业未写 */

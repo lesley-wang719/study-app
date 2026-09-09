@@ -2890,10 +2890,61 @@ function renderMomHome(body, child) {
     </div>
 
     <div class="section-card">
+      <div class="section-title">📅 历史完成（近14天）</div>
+      <div id="momHistory"></div>
+    </div>
+
+    <div class="section-card">
       <div class="section-title">📨 推送箱（最新5条）</div>
       <div id="momPreview"></div>
     </div>
   `;
+  // 历史完成统计：按天列出打开过应用的天数中，任务完成/未完成情况
+  const histBox = body.querySelector('#momHistory');
+  const sd = (DB.data.studyDaily && DB.data.studyDaily[child]) || {};
+  const todayStr = today();
+  const rows = [];
+  for (let i = 0; i < 14; i++) {
+    const dstr = addDays(todayStr, -i);
+    const day = sd[dstr];
+    const opened = !!day;
+    const plans = (day && day.plans) || [];
+    rows.push({ dstr, opened, doneN: plans.filter(x => x.state === 'done').length, totalN: plans.length });
+  }
+  const sumDone = rows.reduce((s, r) => s + r.doneN, 0);
+  const sumAll = rows.reduce((s, r) => s + r.totalN, 0);
+  histBox.innerHTML = `
+    <p class="small muted" style="margin-bottom:8px;">近 14 天共完成 <b>${sumDone}</b> / <b>${sumAll}</b> 个任务（点击某天可查看明细）</p>
+    ${rows.map(r => {
+      const nm = DAY_NAMES[dayKey(new Date(r.dstr))];
+      const mmdd = r.dstr.slice(5).replace('-', '/');
+      if (!r.opened) {
+        return `<div class="list-card" data-d="${r.dstr}" style="cursor:pointer; opacity:.8;">
+          <div class="list-icon">📅</div>
+          <div class="list-body">
+            <div class="list-title">${mmdd} ${nm}</div>
+            <div class="list-sub">当天没有打开应用，无记录</div>
+          </div>
+          <span class="tag tag-pending">未打开</span>
+        </div>`;
+      }
+      const doneAll = r.totalN > 0 && r.doneN === r.totalN;
+      const pct = r.totalN ? Math.round(r.doneN / r.totalN * 100) : 0;
+      return `<div class="list-card" data-d="${r.dstr}" style="cursor:pointer;">
+        <div class="list-icon">${doneAll && r.totalN ? '🏆' : '📅'}</div>
+        <div class="list-body">
+          <div class="list-title">${mmdd} ${nm}</div>
+          <div class="module-progress" style="height:6px; margin:6px 0 4px;"><div class="module-progress-fill" style="width:${pct}%;"></div></div>
+          <div class="list-sub">完成 ${r.doneN}/${r.totalN} 个任务${r.totalN - r.doneN ? '，有 ' + (r.totalN - r.doneN) + ' 个未完成' : ''}</div>
+        </div>
+        <span class="tag ${r.totalN === 0 ? 'tag-pending' : (doneAll ? 'tag-done' : 'tag-pending')}">${r.totalN === 0 ? '无任务' : (doneAll ? '✅ 全部完成' : '查看 ›')}</span>
+      </div>`;
+    }).join('')}
+  `;
+  histBox.querySelectorAll('[data-d]').forEach(el => {
+    el.onclick = () => renderMomDayDetail(body, child, el.dataset.d);
+  });
+
   const checks = Object.entries(DB.data.momChecks).filter(([k])=>k.startsWith(child+'_')).sort((a,b)=>b[1].ts-a[1].ts).slice(0,5);
   body.querySelector('#momPreview').innerHTML = checks.length ? checks.map(([k,v])=>`
     <div class="list-card">
@@ -2905,6 +2956,64 @@ function renderMomHome(body, child) {
       <span class="tag ${v.status==='reviewed'?'tag-done':'tag-pending'}">${v.status==='reviewed'?'已查看':'待检查'}</span>
     </div>
   `).join('') : '<p class="muted small">还没有推送</p>';
+}
+
+/* 妈妈概览 - 某一天任务完成明细（在概览区域内切换视图） */
+function renderMomDayDetail(body, child, dstr) {
+  const sd = (DB.data.studyDaily && DB.data.studyDaily[child]) || {};
+  const day = sd[dstr];
+  const plans = (day && day.plans) || [];
+  const hwDay = ((DB.data.homework || {})[child] || {})[dstr];
+  const nm = DAY_NAMES[dayKey(new Date(dstr))] || '';
+  const doneN = plans.filter(x => x.state === 'done').length;
+  const rowsHtml = plans.length ? plans.map(x => {
+    const plan = PLAN_LIBRARY.find(z => z.id === x.planId);
+    const done = x.state === 'done';
+    return `
+      <div class="list-card">
+        <div class="list-icon">${plan ? plan.emoji : '📌'}</div>
+        <div class="list-body">
+          <div class="list-title">${plan ? plan.name : '未知任务'}</div>
+          <div class="list-sub">${plan ? '⏱ 预计 ' + plan.duration + ' 分钟' : ''}</div>
+        </div>
+        <span class="tag ${done ? 'tag-done' : 'tag-pending'}">${done ? '✅ 已完成' : '❌ 未完成'}</span>
+      </div>`;
+  }).join('') : '<p class="muted small">当天没有安排学习计划任务</p>';
+  const hasHw = hwDay && (hwDay.content || (hwDay.photos && hwDay.photos.length));
+  const hwHtml = hasHw
+    ? `<div class="list-card">
+        <div class="list-icon">📚</div>
+        <div class="list-body">
+          <div class="list-title">老师作业</div>
+          <div class="list-sub">${((hwDay.content || '') || (hwDay.photos && hwDay.photos.length ? '已拍照 ' + hwDay.photos.length + ' 张' : '')).slice(0, 90)}</div>
+        </div>
+        <span class="tag ${hwDay.completed ? 'tag-done' : 'tag-pending'}">${hwDay.completed ? '✅ 已完成' : '⏳ 未完成'}</span>
+      </div>`
+    : '<p class="muted small">当天没有老师作业记录</p>';
+  const mmdd = dstr.slice(5).replace('-', '/');
+  body.innerHTML = `
+    <button class="btn-secondary" id="backHomeBtn" style="margin-bottom:10px;">← 返回概览</button>
+    <div class="summary-card purple">
+      <div>
+        <div class="num" style="font-size:22px;">${mmdd}</div>
+        <div class="lbl">${nm}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="num">${doneN}/${plans.length}</div>
+        <div class="lbl">已完成任务</div>
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-title">📋 学习计划任务</div>
+      ${rowsHtml}
+    </div>
+    <div class="section-card">
+      <div class="section-title">📚 当天作业</div>
+      ${hwHtml}
+    </div>
+  `;
+  const bk = body.querySelector('#backHomeBtn');
+  if (bk) bk.onclick = () => renderMomHome(body, child);
 }
 
 /* 妈妈后台 - 作业检查 */
@@ -2968,6 +3077,7 @@ function normalizeFixed(v) {
 /* 草稿：妈妈修改先写入本地草稿，点「保存并同步」才写库并推到云端全家可见 */
 let _planDraft = null;
 let _planDraftChild = '';
+let _planDraftBase = '';   // 进入页面时已保存配置的快照，用于“只叠加妈妈的修改，不覆盖云端新配置”
 
 function fmtTs(ts) {
   try { return new Date(ts).toLocaleString('zh-CN', { hour12:false }); } catch(e) { return ''; }
@@ -2981,12 +3091,13 @@ function _draftOf(child) {
       fixedDay: Object.assign({}, conf.fixedDay || {}),
       allowSelfAssign: !!conf.allowSelfAssign
     };
+    _planDraftBase = JSON.stringify({ enabled: conf.enabled || {}, fixedDay: conf.fixedDay || {}, allowSelfAssign: !!conf.allowSelfAssign });
     _planDraftChild = child;
   }
   return _planDraft;
 }
 
-function _dropPlanDraft() { _planDraft = null; _planDraftChild = ''; }
+function _dropPlanDraft() { _planDraft = null; _planDraftChild = ''; _planDraftBase = ''; }
 
 function _planDirty(child) {
   if (!_planDraft || _planDraftChild !== child) return false;
@@ -3005,6 +3116,45 @@ function _syncBoxHtml() {
   const setupBtn = `<button class="btn-mini sync-btn" id="btnSyncSetup">⚙️ 开启/修改</button>`;
   const nowBtn = s.level==='ok' ? `<button class="btn-mini sync-btn" id="btnSyncNow">🔄 立即同步</button>` : '';
   return `<div class="sync-box ${cls}"><span class="sync-ic">${icon}</span><span class="sync-txt">${s.text}</span>${nowBtn}${setupBtn}</div>`;
+}
+
+/* 本周安排预览模拟：真实已生成的日子显示实况，其余按当前配置预估整周会安排的任务 */
+function _simulateWeek(child, startDate) {
+  const conf = DB.data.weeklyConfig[child];
+  const userDaily = (DB.data.studyDaily && DB.data.studyDaily[child]) || {};
+  const out = [];
+  const prior = {};            // 本周该计划已安排次数（真实 + 前面日子的预计）
+  const pushPrior = pid => { prior[pid] = (prior[pid] || 0) + 1; };
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(startDate, i);
+    const realPlans = (userDaily[d] && userDaily[d].plans) || [];
+    if (realPlans.length) {
+      out.push({ d, real: true, totalDuration: userDaily[d].totalDuration || 0, plans: realPlans.map(p => ({ planId: p.planId, state: p.state })) });
+      realPlans.forEach(p => pushPrior(p.planId));
+      continue;
+    }
+    const wk = dayKey(new Date(d));
+    const sim = [];
+    PLAN_LIBRARY.forEach(plan => {
+      const momFixed = normalizeFixed(conf && conf.fixedDay ? conf.fixedDay[plan.id] : null);
+      if (momFixed.length) { if (momFixed.includes(wk)) sim.push(plan.id); return; }
+      if (plan.fixedDay) {
+        const arr = Array.isArray(plan.fixedDay) ? plan.fixedDay : [plan.fixedDay];
+        if (arr.includes(wk)) { sim.push(plan.id); return; }
+      }
+      if (plan.weekendOnly && wk !== 'sat' && wk !== 'sun') return;
+      if (!plan.weekendOnly && (wk === 'sat' || wk === 'sun')) return;
+      const enabled = (conf && conf.enabled) ? conf.enabled[plan.id] : 0;
+      if (enabled && (prior[plan.id] || 0) < enabled) sim.push(plan.id);
+    });
+    out.push({
+      d, real: false,
+      totalDuration: sim.reduce((s, id) => { const pl = PLAN_LIBRARY.find(x => x.id === id); return s + (pl ? pl.duration : 0); }, 0),
+      plans: sim.map(id => ({ planId: id, state: 'pending' }))
+    });
+    sim.forEach(id => pushPrior(id));
+  }
+  return out;
 }
 
 function renderMomPlans(body, child) {
@@ -3035,8 +3185,8 @@ function renderMomPlans(body, child) {
     </div>
 
     <div class="section-card">
-      <div class="section-title">📅 本周分配预览</div>
-      <p class="small muted">预览为当前已保存的实际分配；保存新配置后，孩子端打开会按新配置重新分配。</p>
+      <div class="section-title">📅 本周安排预览</div>
+      <p class="small muted">孩子当天打开应用后，系统会自动按配置生成任务并打卡。这里把<b>整周会安排的任务</b>提前列出：<b>实况</b>=当天已生成的真实任务；其余为按当前配置的<b>预计安排</b>，孩子打开应用后即生效。</p>
       <div class="week-grid" id="weekGrid"></div>
       <div id="weekPlanList"></div>
     </div>
@@ -3126,21 +3276,46 @@ function renderMomPlans(body, child) {
   if (saveBtn) {
     saveBtn.onclick = () => {
       const dd = _draftOf(child);
-      const cfg = DB.data.weeklyConfig[child] || (DB.data.weeklyConfig[child] = { enabled:{}, fixedDay:{}, allowSelfAssign:false });
-      cfg.enabled = Object.assign({}, dd.enabled);
-      cfg.fixedDay = Object.assign({}, dd.fixedDay);
-      cfg.allowSelfAssign = !!dd.allowSelfAssign;
+      const cur = DB.data.weeklyConfig[child];
+      const curKey = cur ? JSON.stringify(cur) : '';
+      let cfg = cur || (DB.data.weeklyConfig[child] = { enabled:{}, fixedDay:{}, allowSelfAssign:false });
+      /* 云端/其他设备若在妈妈编辑期间同步了新配置：只把妈妈“确实改过的项”叠加上去，
+         不整份盖回旧草稿——否则其他设备刚保存的配置会被打回旧值，表现为“配置保存后又会没掉” */
+      if (_planDraftBase && _planDraftBase !== curKey) {
+        const base = JSON.parse(_planDraftBase);
+        const enabled = {}, fixedDay = {};
+        const pidSet = new Set([...Object.keys(cfg.enabled||{}), ...Object.keys(dd.enabled||{}), ...Object.keys(base.enabled||{})]);
+        for (const pid of pidSet) {
+          enabled[pid] = JSON.stringify(dd.enabled[pid]) !== JSON.stringify(base.enabled[pid]) ? dd.enabled[pid] : (cfg.enabled||{})[pid];
+        }
+        const fset = new Set([...Object.keys(cfg.fixedDay||{}), ...Object.keys(dd.fixedDay||{}), ...Object.keys(base.fixedDay||{})]);
+        for (const pid of fset) {
+          const dF = JSON.stringify(normalizeFixed(dd.fixedDay[pid]));
+          const bF = JSON.stringify(normalizeFixed(base.fixedDay[pid]));
+          fixedDay[pid] = dF !== bF ? dd.fixedDay[pid] : (cfg.fixedDay||{})[pid];
+        }
+        cfg.enabled = enabled;
+        cfg.fixedDay = fixedDay;
+        cfg.allowSelfAssign = (!!dd.allowSelfAssign !== !!base.allowSelfAssign) ? !!dd.allowSelfAssign : !!cfg.allowSelfAssign;
+      } else {
+        cfg.enabled = Object.assign({}, dd.enabled);
+        cfg.fixedDay = Object.assign({}, dd.fixedDay);
+        cfg.allowSelfAssign = !!dd.allowSelfAssign;
+      }
       // 记录“谁在什么时候改的”，随云端同步，全家可见
       const me = (typeof AUTH !== 'undefined' && AUTH.current) ? (AUTH.current() || {}) : {};
       const who = me.name || me.username || '妈妈';
       if (!DB.data.planMeta) DB.data.planMeta = {};
       DB.data.planMeta[child] = { by: who, at: Date.now(), atLabel: fmtTs(Date.now()) };
-      // 清掉孩子今天已生成的计划缓存：孩子端下次打开自动按新配置重排
-      if (DB.data.studyDaily[child]) delete DB.data.studyDaily[child][today()];
+      // 清掉孩子今天已生成的计划缓存（若当天一个任务都还没完成→让孩子下次打开按新配置重排；
+      // 若已有完成→保留当天进度不重置，新配置从明天起生效）
+      const tp = DB.data.studyDaily[child] && DB.data.studyDaily[child][today()];
+      const hasDone = !!(tp && tp.plans && tp.plans.some(x => x.state === 'done'));
+      if (DB.data.studyDaily[child] && !hasDone) delete DB.data.studyDaily[child][today()];
       _dropPlanDraft();
       DB.save();
       renderMomPlans(body, child);
-      toast('💾 已保存，正在同步到云端…', 1800);
+      toast(hasDone ? '💾 已保存；今天的任务孩子已开始，从明天起按新配置生效' : '💾 已保存，正在同步到云端…', 2400);
       setTimeout(() => {
         if (typeof SYNC !== 'undefined' && SYNC.pushNow) {
           SYNC.pushNow().then(r => {
@@ -3187,7 +3362,7 @@ function renderMomPlans(body, child) {
     };
   }
 
-  // 周预览
+  // 周预览（已生成=实况；未生成=按配置预计）
   body.querySelector('#weekGrid').innerHTML = DAYS.map(dy => `
     <div class="week-day ${['sat','sun'].includes(dy)?'weekend':''}">${DAY_NAMES[dy]}</div>
   `).join('');
@@ -3199,22 +3374,20 @@ function renderMomPlans(body, child) {
     dt.setDate(dt.getDate() + diff);
     return dt.toISOString().slice(0,10);
   })();
-  const userDaily = DB.data.studyDaily[child] || {};
-  const preview = [];
-  for (let i = 0; i < 7; i++) {
-    const dstr = addDays(start, i);
-    const plans = (userDaily[dstr] && userDaily[dstr].plans) || [];
-    preview.push({ d: dstr, plans });
-  }
-  body.querySelector('#weekPlanList').innerHTML = preview.map(({ d, plans }) => {
-    if (!plans.length) return `<div class="muted small mt-12">${d}（${DAY_NAMES[dayKey(new Date(d))]}）: 无任务</div>`;
+
+  body.querySelector('#weekPlanList').innerHTML = _simulateWeek(child, start).map(({ d, real, totalDuration, plans }) => {
+    const nm = DAY_NAMES[dayKey(new Date(d))];
+    if (!plans.length) return `<div class="muted small mt-12">${d}（${nm}）: ${real ? '无任务' : '休息日，无安排'}</div>`;
     return `
       <div class="section-card">
-        <div class="kid-font" style="font-weight:bold;">${d}（${DAY_NAMES[dayKey(new Date(d))]}） · 预计${userDaily[d].totalDuration||0}分钟</div>
-        ${plans.map(p => {
-          const plan = PLAN_LIBRARY.find(x=>x.id===p.planId);
-          return `<span class="chip ${p.state==='done'?'tag-done':''}">${plan.emoji} ${plan.name}</span>`;
-        }).join('')}
+        <div class="kid-font" style="font-weight:bold;">${d}（${nm}） · 约${totalDuration}分钟
+          ${real ? '<span class="tag tag-done" style="margin-left:6px;">实况</span>' : '<span class="tag tag-pending" style="margin-left:6px;">预计</span>'}
+        </div>
+        <p class="small muted" style="margin-top:2px;">${real ? '当天孩子打开应用后已生成的真实任务' : '按当前配置预计安排（孩子打开应用后自动生成并开始打卡）'}</p>
+        <div style="margin-top:6px;">${plans.map(p => {
+          const plan = PLAN_LIBRARY.find(x => x.id === p.planId);
+          return `<span class="chip ${p.state === 'done' ? 'tag-done' : ''}">${plan ? plan.emoji + ' ' + plan.name : '未知任务'}${p.state === 'done' ? ' ✅' : ''}</span>`;
+        }).join('')}</div>
       </div>
     `;
   }).join('');
@@ -3466,8 +3639,14 @@ function renderMomSettings(body) {
     <div class="section-card">
       <div class="section-title">📲 微信推送（Server酱）</div>
       <p class="small muted">孩子断签、错题连续错、妈妈发送惩罚时，自动推送到妈妈微信</p>
+      <div class="settings-row" style="justify-content:flex-start; gap:16px;">
+        <span class="small" id="wechatState">状态：${wechat.enabled && wechat.sctKey ? '✅ <b style="color:#1E8449;">已开启</b>' : '⭕ 未开启'}</span>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+          <input type="checkbox" id="wechatOn" ${wechat.enabled && wechat.sctKey ? 'checked' : ''} /> 推送开关
+        </label>
+      </div>
       <div class="form-group">
-        <label>SendKey</label>
+        <label>SendKey（填写一次即被记住，可随时修改或关闭）</label>
         <input type="text" id="sctKey" value="${wechat.sctKey||''}" placeholder="SCT2xxxxxxxxxxx">
       </div>
       <div class="form-group">
@@ -3484,9 +3663,13 @@ function renderMomSettings(body) {
         <button class="btn-finish" id="testWechat" style="background:#27AE60; box-shadow:0 4px 0 #1E8449;">🧪 发送测试</button>
         <a href="https://sct.ftqq.com/" target="_blank" class="btn-finish" style="background:#3498DB; box-shadow:0 4px 0 #21618C; text-decoration:none; display:inline-block; line-height:2.6;">🔗 注册获取SendKey</a>
       </div>
+      <div class="settings-row">
+        <button class="btn-secondary" id="clearWechat" style="color:#C0392B; border-color:#C0392B;">🗑 关闭并清除 SendKey</button>
+      </div>
       <p class="small muted mt-12">
         📌 <b>Server酱</b>是免费微信推送服务，扫码绑定微信后即可接收通知。
-        注册 → 绑定微信 → 复制 SendKey 粘贴到上面。
+        注册 → 绑定微信 → 复制 SendKey 粘贴到上面。<br>
+        SendKey 填写一次即记住，平时可点开关临时暂停，不用重填。
       </p>
     </div>
 
@@ -3562,25 +3745,63 @@ function renderMomSettings(body) {
   body.querySelector('#txSecretKey')?.addEventListener('change', saveTencent);
   body.querySelector('#txRegion')?.addEventListener('change', saveTencent);
 
-  // 微信推送
-  body.querySelector('#saveWechat').onclick = () => {
-    DB.data.wechat.sctKey = body.querySelector('#sctKey').value.trim();
+  // 微信推送（记忆 + 修改 + 开关）
+  const sctInput = body.querySelector('#sctKey');
+  const onBox = body.querySelector('#wechatOn');
+  const stateEl = body.querySelector('#wechatState');
+  const updateWechatUI = () => {
+    const on = !!(DB.data.wechat.sctKey && (onBox ? onBox.checked : true));
+    if (stateEl) stateEl.innerHTML = '状态：' + (on ? '✅ <b style="color:#1E8449;">已开启</b>' : '⭕ 未开启');
+  };
+  const persistWechat = (keepEnabled) => {
+    DB.data.wechat.sctKey = (sctInput ? sctInput.value.trim() : '') || DB.data.wechat.sctKey || '';
     DB.data.wechat.quietStart = parseInt(body.querySelector('#quietStart').value) || 22;
     DB.data.wechat.quietEnd = parseInt(body.querySelector('#quietEnd').value) || 7;
-    DB.data.wechat.enabled = !!DB.data.wechat.sctKey;
+    if (!DB.data.wechat.sctKey) { DB.data.wechat.enabled = false; }
+    else if (keepEnabled !== undefined) DB.data.wechat.enabled = !!keepEnabled;
+    else DB.data.wechat.enabled = !!(onBox && onBox.checked);
     DB.save();
-    toast('✅ 微信推送配置已保存');
   };
+  body.querySelector('#saveWechat').onclick = () => {
+    persistWechat();
+    updateWechatUI();
+    toast('✅ 微信推送配置已保存，下次打开仍是这个设置');
+  };
+  if (onBox) {
+    onBox.onchange = () => {
+      if (onBox.checked && !(sctInput && sctInput.value.trim()) && !DB.data.wechat.sctKey) {
+        onBox.checked = false;
+        toast('请先填写 SendKey，再打开开关');
+        return;
+      }
+      persistWechat(onBox.checked);
+      updateWechatUI();
+      toast(onBox.checked ? '✅ 微信推送已开启' : '⏸ 微信推送已暂停（SendKey 仍保留，可随时再开）', 2400);
+    };
+  }
   body.querySelector('#testWechat').onclick = async () => {
-    // 先临时保存当前输入
-    DB.data.wechat.sctKey = body.querySelector('#sctKey').value.trim();
+    const v = sctInput ? sctInput.value.trim() : '';
+    if (!v && !DB.data.wechat.sctKey) { toast('请先填写 SendKey'); return; }
+    DB.data.wechat.sctKey = v || DB.data.wechat.sctKey || '';
     DB.save();
-    if (!DB.data.wechat.sctKey) { toast('请先填写 SendKey'); return; }
     toast('📤 正在发送测试…', 1500);
     const r = await WECHAT_PUSH.test();
     if (r.ok) toast('✅ 微信推送成功，请查看微信');
     else toast('❌ 推送失败：' + (r.reason || '未知错误'), 4000);
   };
+  const clrBtn = body.querySelector('#clearWechat');
+  if (clrBtn) {
+    clrBtn.onclick = async () => {
+      if (!await showModal('确定关闭微信推送并清除 SendKey 吗？清除后需要重新填写才能恢复推送。')) return;
+      DB.data.wechat.sctKey = '';
+      DB.data.wechat.enabled = false;
+      DB.save();
+      if (sctInput) sctInput.value = '';
+      if (onBox) onBox.checked = false;
+      updateWechatUI();
+      toast('微信推送已关闭并清除 SendKey');
+    };
+  }
 
   // PWA 状态
   if ('serviceWorker' in navigator) {
@@ -3654,13 +3875,16 @@ function renderSyncCard(scope) {
   else if (info.state === 'error' || info.state === 'on') stHtml = '<span style="color:#B9770E;font-weight:bold;">⚠️ ' + (info.lastError || '连接中…') + '</span>';
   else stHtml = '<span style="color:#856404;font-weight:bold;">⭕ 未开启（数据仅保存在本机）</span>';
 
+  const hasCfg = !!(DB.data && DB.data._syncConfig && (DB.data._syncConfig.binUrl || '').trim());
   box.innerHTML = `
     <p class="small" style="line-height:1.8;">状态：${stHtml}</p>
     <p class="small muted" style="line-height:1.6;">${hint.text}</p>
+    ${hasCfg ? `<p class="small" style="color:#1E8449;">🔑 本机已保存连接配置（会自动记住，无需重复填写）</p>` : ''}
     ${info.lastSyncAt ? `<p class="small muted">最近一次同步：${fmtTs(info.lastSyncAt)}</p>` : ''}
     <div class="settings-row">
-      <button class="btn-finish" id="syncNowBtn" ${info.connected ? '' : 'disabled'} style="background:#27AE60; box-shadow:0 4px 0 #1E8449;">🔄 立即同步</button>
-      <button class="btn-finish" id="syncSetupBtn" style="background:#8E44AD; box-shadow:0 4px 0 #6C3483;">${info.connected ? '⚙️ 修改连接' : '🔌 开启/连接'}</button>
+      <button class="btn-finish" id="syncNowBtn" ${info.state === 'off' ? 'disabled' : ''} style="background:#27AE60; box-shadow:0 4px 0 #1E8449;">🔄 立即同步</button>
+      <button class="btn-finish" id="syncSetupBtn" style="background:#8E44AD; box-shadow:0 4px 0 #6C3483;">${info.connected ? '⚙️ 修改连接' : (hasCfg ? '🔄 重连/修改' : '🔌 开启/连接')}</button>
+      ${hasCfg && !info.connected ? '<button class="btn-secondary" id="syncOffBtn" style="color:#C0392B; border-color:#C0392B;">🗑 关闭同步</button>' : ''}
     </div>
   `;
   const nw = box.querySelector('#syncNowBtn');
@@ -3677,6 +3901,15 @@ function renderSyncCard(scope) {
   }
   const sb = box.querySelector('#syncSetupBtn');
   if (sb) sb.onclick = () => openSyncSetup();
+  const ofb = box.querySelector('#syncOffBtn');
+  if (ofb) {
+    ofb.onclick = async () => {
+      if (!await showModal('确定关闭多设备同步吗？\n关闭后本机不再连接云端，数据只保存在这台设备。')) return;
+      if (hasSync && SYNC.clearCloud) await SYNC.clearCloud();
+      toast('已关闭多设备同步（连接配置已清除）');
+      route();
+    };
+  }
 }
 
 /* 配置云同步弹窗：填写 jsonbin Bin ID + Master Key → 保存并连接 */
@@ -3686,9 +3919,13 @@ function openSyncSetup() {
   const cfg = (DB.data && DB.data._syncConfig) || {};
   const hasSync = typeof SYNC !== 'undefined';
   const connected = hasSync && SYNC.info && SYNC.info().connected;
+  const hasCfg = !!(cfg && (cfg.binUrl || '').trim());
+  const hintTxt = (hasSync && SYNC.cloudHint && !connected) ? SYNC.cloudHint().text : '';
   mb.innerHTML = `
     <h3 style="color:#7D3C98; margin:0 0 10px;">☁️ 多设备云同步设置</h3>
-    <p class="small muted" style="line-height:1.7;">学习计划、积分、作业会保存到免费云端。妈妈在一台设备保存后，<b>全家任何手机/电脑打开网站都会自动更新</b>。每台设备只需设置一次。</p>
+    ${hasCfg ? `<p class="small" style="color:#1E8449;">🔑 本机已记住连接配置，无需重新填写。想改就改下面任一项后点「更新并重连」；想停用就点「关闭并清除连接」。</p>`
+             : `<p class="small muted" style="line-height:1.7;">学习计划、积分、作业会保存到免费云端。妈妈在一台设备保存后，<b>全家任何手机/电脑打开网站都会自动更新</b>。每台设备只需设置一次。</p>`}
+    ${!connected && hintTxt ? `<p class="small" style="margin:6px 0; color:#C0392B;">⚠️ 上次状态：${hintTxt}</p>` : ''}
     <div style="margin:10px 0;"><label style="font-weight:bold; display:block; margin-bottom:4px;">① Bin ID（jsonbin.io → Create Bin 后，URL 中 /v3/b/ 后面那串）</label>
       <input type="text" id="sbBinId" class="text-input" style="width:100%;" placeholder="例：65f2a1b9dc74654018b9xxxx" value="${cfg.binUrl ? (cfg.binUrl.split('/').pop() || '') : ''}" /></div>
     <div style="margin:10px 0;"><label style="font-weight:bold; display:block; margin-bottom:4px;">② X-Master-Key（jsonbin 头像 → API Keys 里复制）</label>
@@ -3698,8 +3935,8 @@ function openSyncSetup() {
     <div id="sbResult" style="display:none; margin:8px 0;" class="small"></div>
     <div class="modal-actions" style="flex-wrap:wrap;">
       <button class="btn-secondary" id="sbCancel">取消</button>
-      ${connected ? '<button class="btn-secondary" id="sbClear" style="color:#C0392B;">🗑 清除连接</button>' : ''}
-      <button class="btn-finish" id="sbSave">💾 保存并连接</button>
+      ${(connected || hasCfg) ? '<button class="btn-secondary" id="sbClear" style="color:#C0392B;">🗑 关闭并清除连接</button>' : ''}
+      <button class="btn-finish" id="sbSave">${hasCfg ? '💾 更新并重连' : '💾 保存并连接'}</button>
     </div>
     <details style="margin-top:10px;"><summary style="cursor:pointer; color:#4A90E2;" class="small">📖 没有 jsonbin 账号？3 步免费开通</summary>
       <div style="line-height:1.9; padding:10px 12px; background:#f6f6f6; border-radius:8px;" class="small muted">
