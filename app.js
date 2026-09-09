@@ -3114,7 +3114,7 @@ function _syncBoxHtml() {
   const cls = s.level==='ok' ? 'sync-ok' : (s.level==='err' ? 'sync-err' : 'sync-warn');
   const icon = s.level==='ok' ? '✅' : (s.level==='err' ? '⚠️' : '☁️');
   const setupBtn = `<button class="btn-mini sync-btn" id="btnSyncSetup">⚙️ 开启/修改</button>`;
-  const nowBtn = s.level==='ok' ? `<button class="btn-mini sync-btn" id="btnSyncNow">🔄 立即同步</button>` : '';
+  const nowBtn = (s.level==='ok' || s.level==='err') ? `<button class="btn-mini sync-btn" id="btnSyncNow">🔄 立即同步</button>` : '';
   return `<div class="sync-box ${cls}"><span class="sync-ic">${icon}</span><span class="sync-txt">${s.text}</span>${nowBtn}${setupBtn}</div>`;
 }
 

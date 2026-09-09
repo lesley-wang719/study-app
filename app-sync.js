@@ -287,6 +287,7 @@ function _updateFooter() {
     if (!el) return;
     if (SYNC.enabled && SYNC.state === 'on') el.textContent = 'v1.6 · ✅ 云端已连接，全家数据自动同步';
     else if (SYNC.state === 'keyerror') el.textContent = 'v1.6 · ⚠️ 云端密钥有误，请在「系统设置→多设备同步」修改';
+    else if (SYNC.state === 'error') el.textContent = 'v1.6 · ⚠️ 云端连接失败，正在自动重试…';
     else if (SYNC.enabled) el.textContent = 'v1.6 · ☁️ 正在连接云端…';
     else el.textContent = 'v1.6 · 数据保存在本机（妈妈后台可开启多设备同步）';
   } catch (e) {}
@@ -492,7 +493,13 @@ function _syncStarted() {
   if (SYNC._vis) document.removeEventListener('visibilitychange', SYNC._vis);
   _updateFooter();
   if (typeof route === 'function') route();               // 用最新数据重绘
-  toast('☁️ 已连接云端，多设备数据同步中', 2000);
+  if (SYNC.state === 'on') {
+    toast('☁️ 已连接云端，多设备数据同步中', 2000);
+  } else if (SYNC.state !== 'keyerror') {
+    // 首次连接没成功（网络/云端暂时异常）：明确提示失败原因，并稍后自动补连一次
+    toast('⚠️ 云端暂时连不上（' + (SYNC.lastError || '网络异常') + '），正在自动重试…', 3500);
+    setTimeout(() => _pullLoop(false), 8000);
+  }
   // 外部云存储有免费额度限制 → 3分钟轮询；自建后端无限制 → 30秒
   SYNC._intv = setInterval(() => _pullLoop(true), EXT ? 180000 : 30000);
   SYNC._vis = () => { if (!document.hidden) _pullLoop(true); };
